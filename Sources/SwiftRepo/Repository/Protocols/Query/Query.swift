@@ -1,0 +1,168 @@
+//
+//  Created by Timothy Moose on 5/23/22.
+//  Copyright © 2022 ZenBusiness PBC. All rights reserved.
+//
+
+import Combine
+import Foundation
+import Core
+
+public enum QueryError: String, Error {
+    case cancelled
+}
+
+/// Provides an interface for objects to layer functionality onto basic service queries, such
+/// as query de-duplication and publishing values over time.
+///
+/// In a typical usage, a repository would query remote data through an
+/// instance of `Query`, which would in turn be responsible for making the service call.
+public protocol Query<QueryId, Variables, Value> {
+    /// Query ID identifies a unique request for the purposes of request de-duplication, cancellation and providing ID-scoped publishers.
+    associatedtype QueryId: Hashable
+
+    /// The variables that provide the request parameters. When two overlapping queries are made with the same query ID and variables,
+    /// only one request is made. When two overlapping queries are made with the same query ID and different variables, any ongoing
+    /// request is cancelled and a new request is made with the latest variables.
+    associatedtype Variables: Hashable
+
+    /// The response type returned by the query.
+    associatedtype Value
+
+    /// The result type used by publishers.
+    typealias ResultType = QueryResult<QueryId, Variables, Value, Error>
+
+    /// Called to perform the query.
+    @discardableResult
+    func get(id: QueryId, variables: Variables) async throws -> Value
+
+    /// Cancells any ongoing query.
+    func cancel(id: QueryId) async
+
+    /// Publishes responses for all queries. Cancellation errors are not published. Callers can catch thrown errors from `get()` to check for cancellations.
+    var publisher: AnyPublisher<ResultType, Never> { get }
+
+    /// Publishes responses matching the specified query ID. Cancellation errors are not published. Callers can catch thrown errors from `get()` to check for cancellations.
+    /// - Parameter id: the query ID to match against.
+    /// - Returns: a publisher of responses.
+    func publisher(for id: QueryId) -> AnyPublisher<ResultType, Never>
+
+    /// Returns the variables for the most recent successful query for the given query ID.
+    /// - Parameter id: the query ID.
+    /// - Returns: the variables for the most recent successful query for the given query ID. Returns `nil` if there has been no successul query.
+    func latestVariables(for id: QueryId) async -> Variables?
+}
+
+public extension Query {
+    typealias WillGet = () async -> Void
+
+    @discardableResult
+    /// Conditionally perform the query if needed based on the specified strategy and the state of the store.
+    /// - Parameters:
+    ///   - id: The query ID
+    ///   - variables: The query variables
+    ///   - store: The observable store where query results are cached
+    ///   - unmappedKey: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
+    ///   - keyFactory: a closure that converts the query ID and variables into a store key
+    ///   - errorIntent: The error intent to apply to errors that are thrown by the query
+    ///   - strategy: The query strategy
+    ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
+    /// - Returns: The value if the query was performed. Otherwise, `nil`.
+    func get<Store, Key>(
+        id: QueryId,
+        variables: Variables,
+        into store: Store,
+        keyedBy unmappedKey: Key,
+        valueVariablesFactory: ((QueryId, Variables, Value) -> Variables)?,
+        keyFactory: @escaping (QueryId, Variables) -> Key,
+        errorIntent: ErrorIntent,
+        strategy: QueryStrategy,
+        willGet: WillGet?
+    ) async throws -> Value?
+    where Store: ObservableStore, Store.Value == Value, Store.Key == Key, Store.PublishKey == QueryId {
+        let key = await store.map(key: unmappedKey)
+        // Set the current key to this query's key. If the key exists in the store and is not already the current
+        // key, the new current value will be published.
+        await store.set(currentKey: key)
+        let variablesChanged: Bool
+        // We have two techniques for determining if the query variables have changed. When using `QueryStoreKey`, the variables
+        // are part of the key, so we just check if the key is changing. For all other keys, we rely on comparing the incoming variables
+        // to the latest variables used in the query.
+        if let queryStoreKey = key as? QueryStoreKey<QueryId, Variables> {
+            let currentKey = await store.currentKey(for: id) as? QueryStoreKey<QueryId, Variables>
+            variablesChanged = queryStoreKey != currentKey
+        } else {
+            let latestVariables = await latestVariables(for: id)
+            variablesChanged = variables != latestVariables
+        }
+        let isPaging: Bool = {
+            switch variables as? HasCursorPaginationInput {
+            case let variables?: return variables.isPaging
+            case .none: return false
+            }
+        }()
+        // Don't do anything if the data is fresh enough and the variables haven't changed.
+        guard await shouldGet(
+            strategy: strategy,
+            ageOfStore: await store.age(of: key),
+            variablesChanged: variablesChanged,
+            isPaging: isPaging
+        ) else {
+            // This closes a loophole:
+            // 1. There is an ongoing query with variables A
+            // 2. This function is called again with variables B
+            // 3. The store publishes a cached value for variables B
+            // 4. The ongoing query with variables A needs to be cancelled explicitly
+            //    since we're here and not peroforming a query with variables B
+            await cancel(id: id)
+            return nil
+        }
+        await willGet?()
+        do {
+            let value = try await get(id: id, variables: variables)
+            if let valueVariables = valueVariablesFactory?(id, variables, value) {
+                let valueKey = keyFactory(id, valueVariables)
+                await store.addMapping(from: valueKey, to: key)
+            }
+            await store.set(key: key, value: value)
+            return value
+        } catch var error as AppError {
+            // On error, apply the error intent
+            error.intent = errorIntent
+            throw error
+        }
+    }
+
+    /// Publishes all values
+    var valuePublisher: AnyPublisher<Value, Never> {
+        publisher
+            .compactMap {
+                switch $0.result {
+                case let .success(value): return value
+                case .failure: return nil
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+}
+
+extension Query {
+    private func shouldGet(
+        strategy: QueryStrategy,
+        ageOfStore: TimeInterval?,
+        variablesChanged: Bool,
+        isPaging: Bool
+    ) async -> Bool {
+        guard !isPaging else { return true }
+        switch strategy {
+        case let .ifOlderThan(timeInterval):
+            return (ageOfStore ?? TimeInterval.greatestFiniteMagnitude >= timeInterval) ||
+                variablesChanged
+        case .ifNotStored:
+            return ageOfStore == nil || variablesChanged
+        case .always:
+            return true
+        case .never:
+            return false
+        }
+    }
+}
