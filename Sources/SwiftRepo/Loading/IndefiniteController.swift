@@ -33,11 +33,12 @@ public protocol IndefiniteControllerDelegate: AnyObject {
 ///
 /// When `stop()` is completed, the user may transition away from the loading state.
 public final actor IndefiniteController {
-    
+
     // MARK: - API
 
     public typealias DidExceedDelay = (Bool) -> Void
 
+    @MainActor
     public init(
         delay: Duration,
         minimumDuration: Duration,

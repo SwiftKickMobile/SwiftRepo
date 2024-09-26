@@ -7,7 +7,7 @@ import SwiftUI
 
 /// The default loading card with circle loading indicator.
 public struct LoadingView: View {
-    
+
     // MARK: - API
 
     public init() {}

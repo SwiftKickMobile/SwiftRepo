@@ -109,9 +109,9 @@ private struct RetryButtonStyle: ButtonStyle {
 struct LoadingErrorView_Previews: PreviewProvider {
     static var previews: some View {
         let error = UIError(
-            message: "There was an error. Please tap the button to try again.",
+            symbol: .wifiSlash,
             title: "Error Message Title",
-            image: Image(""), // TODO REPO
+            message: "There was an error. Please tap the button to try again.",
             isRetryable: true
         )
         return LoadingErrorView(error: error) {}

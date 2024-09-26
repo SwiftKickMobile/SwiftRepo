@@ -3,13 +3,13 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Combine
 import Foundation
+import Combine
 import Core
 
 /// A state machine for loading, loaded, error and empty states.
 public final actor LoadingController<DataType> where DataType: Emptyable {
-    
+
     // MARK: - API
 
     /// Publishes the loading state on the main actor.

@@ -1,9 +1,11 @@
 //
+//  LoadingController.State+Extensions.swift
+//  BootstrapRepository
+//
 //  Created by Timothy Moose on 4/14/22.
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Foundation
 import Core
 
 public extension LoadingController.State {
@@ -38,7 +40,7 @@ public extension LoadingController.State {
     }
 
     var uiError: UIError? {
-        guard let appError = error as? AppError,
+        guard let appError = error as? (any AppError),
               let uiError = appError.uiError else {
             return nil
         }

@@ -11,7 +11,7 @@ import Core
 /// states and state transitions. The loading, error and empty states may be customized if needed.
 public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorContent, EmptyContent>: View
     where DataType: Emptyable & Equatable, Content: View, LoadingContent: View, ErrorContent: View, EmptyContent: View {
-    
+
     // MARK: - API
 
     public typealias Retry = () async -> Void
@@ -115,8 +115,8 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
         loadingControllerView
 //            .if(shouldPresentAlert) { view in
 //            Text("TODO REPO")
-// Need a solution for this that doesn't explicitly depend on SwiftMessages
-//            view.loadedAlert(state: state)
+//// Need a solution for this that doesn't explicitly depend on SwiftMessages
+////            view.loadedAlert(state: state)
 //        }
     }
 
@@ -125,7 +125,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
             switch state {
             case let .loading(isHidden):
                 loadingContent().opacity(isHidden ? 0 : 1)
-            case let .loaded(data, error, isUpdating):
+            case let .loaded(data, _, isUpdating):
                 content(data, state.uiError, isUpdating)
             case .empty:
                 switch state.uiError {
@@ -166,7 +166,12 @@ struct LoadingControllerView_Previews: PreviewProvider {
         )
         LoadingControllerView(
             state: .empty(
-                UIError(message: "Houston, we have a problem.", title: "Error", image: nil, isRetryable: true)
+                UIError(
+                    symbol: .wifiSlash,
+                    title: "Error",
+                    message: "Houston, we have a problem.",
+                    isRetryable: true
+                )
             ),
             retry: {},
             content: { (data: String, error, isUpdating) in
