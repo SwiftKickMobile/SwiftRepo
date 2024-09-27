@@ -15,7 +15,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
     // MARK: - API
 
     public typealias Retry = () async -> Void
-    public typealias ContentClosure = (DataType, UIError?, Bool) -> Content
+    public typealias ContentClosure = (DataType, (any UIError)?, Bool) -> Content
 
     /// Create a loading controller view with custom content. Uses default loading, error, and empty views.
     public init(
@@ -87,7 +87,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
         shouldPresentAlert: Bool = true,
         @ViewBuilder content: @escaping ContentClosure,
         @ViewBuilder loadingContent: @escaping () -> LoadingContent,
-        @ViewBuilder errorContent: @escaping (UIError) -> ErrorContent,
+        @ViewBuilder errorContent: @escaping (any UIError) -> ErrorContent,
         @ViewBuilder emptyContent: @escaping () -> EmptyContent
     ) {
         self.state = state
@@ -105,7 +105,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
     private let state: LoadingController<DataType>.State
     private let shouldPresentAlert: Bool
     @ViewBuilder private let content: ContentClosure
-    @ViewBuilder private let errorContent: (UIError) -> ErrorContent
+    @ViewBuilder private let errorContent: (any UIError) -> ErrorContent
     @ViewBuilder private let emptyContent: () -> EmptyContent
     @ViewBuilder private let loadingContent: () -> LoadingContent
 
@@ -166,9 +166,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
         )
         LoadingControllerView(
             state: .empty(
-                UIError(
-                    symbol: .wifiSlash,
-                    title: "Error",
+                DefaultUIError(
                     message: "Houston, we have a problem.",
                     isRetryable: true
                 )

@@ -12,7 +12,7 @@ public struct LoadingErrorView: View {
 
     public typealias Retry = () async -> Void
 
-    public init(error: UIError, retry: Retry?) {
+    public init(error: any UIError, retry: Retry?) {
         self.error = error
         self.retry = retry
     }
@@ -21,7 +21,7 @@ public struct LoadingErrorView: View {
 
     // MARK: - Variables
 
-    private let error: UIError
+    private let error: any UIError
     private let retry: Retry?
 
     // MARK: - Body
@@ -108,9 +108,7 @@ private struct RetryButtonStyle: ButtonStyle {
 
 struct LoadingErrorView_Previews: PreviewProvider {
     static var previews: some View {
-        let error = UIError(
-            symbol: .wifiSlash,
-            title: "Error Message Title",
+        let error = DefaultUIError(
             message: "There was an error. Please tap the button to try again.",
             isRetryable: true
         )

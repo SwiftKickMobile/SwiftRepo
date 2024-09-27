@@ -5,13 +5,13 @@
 import Foundation
 import SwiftUI
 
-public struct DefaultError: AppError {
+public struct DefaultError<UIErrorType: UIError>: AppError {
 
     // MARK: - API
 
     public init(
         error: Error?,
-        uiError: UIError?,
+        uiError: UIErrorType?,
         isRetryable: Bool,
         isNotable: Bool,
         intent: ErrorIntent = .indispensable
@@ -27,7 +27,7 @@ public struct DefaultError: AppError {
 
     // MARK: - Variables
 
-    public var uiError: UIError?
+    public var uiError: UIErrorType?
 
     public let isNotable: Bool
 
