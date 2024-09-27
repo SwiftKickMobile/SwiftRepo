@@ -12,7 +12,7 @@ public struct ErrorView: View {
     
     // MARK: - API
     
-    public init(error: UIError) {
+    public init(error: any UIError) {
         self.error = error
     }
     
@@ -20,7 +20,7 @@ public struct ErrorView: View {
     
     // MARK: - Variables
     
-    private let error: UIError
+    private let error: any UIError
     
     // MARK: - Body
     
@@ -33,5 +33,5 @@ public struct ErrorView: View {
 }
 
 #Preview {
-    ErrorView(error: UIError.default(isRetryable: false))
+    ErrorView(error: DefaultUIError.default(isRetryable: false))
 }

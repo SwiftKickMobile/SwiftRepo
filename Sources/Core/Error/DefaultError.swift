@@ -11,7 +11,7 @@ public struct DefaultError: AppError {
 
     public init(
         error: Error?,
-        uiError: UIError?,
+        uiError: (any UIError)?,
         isRetryable: Bool,
         isNotable: Bool,
         intent: ErrorIntent = .indispensable
@@ -27,7 +27,7 @@ public struct DefaultError: AppError {
 
     // MARK: - Variables
 
-    public var uiError: UIError?
+    public var uiError: (any UIError)?
 
     public let isNotable: Bool
 

@@ -39,7 +39,7 @@ public extension LoadingController.State {
         }
     }
 
-    var uiError: UIError? {
+    var uiError: (any UIError)? {
         guard let appError = error as? (any AppError),
               let uiError = appError.uiError else {
             return nil
@@ -47,7 +47,7 @@ public extension LoadingController.State {
         return uiError
     }
 
-    var loadedIndispensableUIError: UIError? {
+    var loadedIndispensableUIError: (any UIError)? {
         switch self {
         case .loaded:
             guard let appError = error as? any AppError,

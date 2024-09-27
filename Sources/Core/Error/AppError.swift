@@ -6,7 +6,7 @@ import Foundation
 
 public protocol AppError: Error {
     /// Optional error data to present to the user
-    var uiError: UIError? { get }
+    var uiError: (any UIError)? { get }
 
     /// `true` if error should be logged
     var isNotable: Bool { get }
