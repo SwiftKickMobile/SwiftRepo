@@ -5,8 +5,10 @@
 import Foundation
 
 public protocol AppError: Error {
+    associatedtype UIErrorType = any UIError
+    
     /// Optional error data to present to the user
-    var uiError: (any UIError)? { get }
+    var uiError: UIErrorType? { get }
 
     /// `true` if error should be logged
     var isNotable: Bool { get }

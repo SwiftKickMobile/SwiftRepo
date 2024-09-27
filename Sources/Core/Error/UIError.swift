@@ -6,38 +6,39 @@
 import SwiftUI
 
 /// A model for user-facing error messages to be displayed in the UI
+///
+/// Use `DefaultUIError` or implement your own to have more rich
+/// data types including images, titles, etc.
 public protocol UIError: Error, Identifiable {
     var message: String { get }
     var isRetryable: Bool { get }
 }
 
 public extension UIError {
+    
+    /// Override this if needed, for example, if
+    /// your error implementation includes a title.
     var id: String { message + "_\(isRetryable)" }
 }
 
+/// This is a default, minimal implementation. If you need titles, images, etc.
+/// you can provide your own implementation of `UIError`.
 public struct DefaultUIError: UIError {
 
     public static func `default`(isRetryable: Bool) -> some UIError {
         DefaultUIError(
-            icon: Image(systemName: "car"),
             message: isRetryable ? "Something went wrong—please try again." : "Something went wrong.",
             isRetryable: isRetryable
         )
     }
 
-    public var icon: Image
-    public var title: String
     public var message: String
     public var isRetryable: Bool
 
     public init(
-        icon: Image,
-        title: String = "Error",
         message: String,
         isRetryable: Bool
     ) {
-        self.icon = icon
-        self.title = title
         self.message = message
         self.isRetryable = isRetryable
     }

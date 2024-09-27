@@ -167,7 +167,6 @@ struct LoadingControllerView_Previews: PreviewProvider {
         LoadingControllerView(
             state: .empty(
                 DefaultUIError(
-                    icon: Image(systemName: "car"),
                     message: "Houston, we have a problem.",
                     isRetryable: true
                 )

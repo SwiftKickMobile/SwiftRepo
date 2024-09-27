@@ -40,22 +40,20 @@ public extension LoadingController.State {
     }
 
     var uiError: (any UIError)? {
-        guard let appError = error as? (any AppError),
-              let uiError = appError.uiError else {
-            return nil
-        }
-        return uiError
+        // The compiler doesn't seem to be able to infer that
+        // `appError.uiError` is a `UIError`, so cast it.
+        guard let appError = error as? (any AppError) else { return nil }
+        return appError.uiError as? any UIError
     }
 
     var loadedIndispensableUIError: (any UIError)? {
         switch self {
         case .loaded:
-            guard let appError = error as? any AppError,
-                  appError.intent == .indispensable,
-                  let uiError = appError.uiError else {
-                return nil
-            }
-            return uiError
+            // The compiler doesn't seem to be able to infer that
+            // `appError.uiError` is a `UIError`, so cast it.
+            guard let appError = error as? (any AppError),
+                  appError.intent == .indispensable else { return nil }
+            return appError.uiError as? any UIError
         default: return nil
         }
     }

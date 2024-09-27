@@ -109,7 +109,6 @@ private struct RetryButtonStyle: ButtonStyle {
 struct LoadingErrorView_Previews: PreviewProvider {
     static var previews: some View {
         let error = DefaultUIError(
-            icon: Image(systemName: "car"),
             message: "There was an error. Please tap the button to try again.",
             isRetryable: true
         )
