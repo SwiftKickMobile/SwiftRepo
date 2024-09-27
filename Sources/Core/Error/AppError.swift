@@ -5,7 +5,7 @@
 import Foundation
 
 public protocol AppError: Error {
-    associatedtype UIErrorType = any UIError
+    associatedtype UIErrorType = UIError
     
     /// Optional error data to present to the user
     var uiError: UIErrorType? { get }
