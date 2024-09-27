@@ -25,7 +25,7 @@ public extension UIError {
 /// you can provide your own implementation of `UIError`.
 public struct DefaultUIError: UIError {
 
-    public static func `default`(isRetryable: Bool) -> some UIError {
+    public static func `default`(isRetryable: Bool) -> DefaultUIError {
         DefaultUIError(
             message: isRetryable ? "Something went wrong—please try again." : "Something went wrong.",
             isRetryable: isRetryable
