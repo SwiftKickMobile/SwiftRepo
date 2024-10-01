@@ -45,7 +45,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         preGet = { queryId, variables in
             guard let key = queryId as? Key else { return }
             if await query.latestVariables(for: queryId) != variables {
-                await observableStore.set(key: key, value: nil)
+                try await observableStore.set(key: key, value: nil)
             }
         }
         get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
@@ -78,7 +78,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         preGet = { queryId, variables in
             guard let key = queryId as? Key else { return }
             if await query.latestVariables(for: queryId) != variables {
-                await observableStore.set(key: key, value: nil)
+                try await observableStore.set(key: key, value: nil)
             }
         }
         get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
@@ -186,7 +186,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     let preGet: (
         _ queryId: QueryId,
         _ variables: Variables
-    ) async -> Void
+    ) async throws -> Void
 
     private let get: (
         _ key: Key,
@@ -205,7 +205,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
         willGet: @escaping Query.WillGet
-    ) async {
+    ) async throws {
         let key = keyFactory(queryId, variables)
         do {
             try await get(key, queryId, variables, errorIntent, queryStrategy ?? self.queryStrategy, willGet)
@@ -224,8 +224,8 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         return observableStore.publisher(for: queryId)
     }
 
-    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
-        await get(
+    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async throws {
+        try await get(
             queryId: queryId,
             variables: variables,
             errorIntent: errorIntent
@@ -238,9 +238,9 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         queryId: QueryId,
         variables: Variables,
         errorIntent: ErrorIntent = .dispensable
-    ) async where Key == QueryId {
-        await preGet(queryId, variables)
-        await get(
+    ) async throws where Key == QueryId {
+        try await preGet(queryId, variables)
+        try await get(
             queryId: queryId,
             variables: variables,
             errorIntent: errorIntent

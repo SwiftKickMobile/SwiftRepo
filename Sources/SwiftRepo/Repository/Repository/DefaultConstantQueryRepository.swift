@@ -66,8 +66,8 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy?,
         willGet: @escaping () async -> Void
-    ) async {
-        await repository.get(
+    ) async throws {
+        try await repository.get(
             queryId: variables,
             variables: variables,
             errorIntent: errorIntent,
@@ -81,7 +81,7 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
         repository.publisher(for: variables, setCurrent: variables)
     }
 
-    public func prefetch(errorIntent: ErrorIntent = .dispensable) async {
-        await repository.prefetch(queryId: variables, variables: variables, errorIntent: errorIntent)
+    public func prefetch(errorIntent: ErrorIntent = .dispensable) async throws {
+        try await repository.prefetch(queryId: variables, variables: variables, errorIntent: errorIntent)
     }
 }

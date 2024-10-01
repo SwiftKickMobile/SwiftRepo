@@ -65,8 +65,8 @@ private extension Query {
         errorIntent: ErrorIntent,
         strategy: QueryStrategy,
         willGet: WillGet?,
-        storeSet: @escaping (Key, Value) async -> Void,
-        modelStoreSet: ((Value) async -> Void)?
+        storeSet: @escaping (Key, Value) async throws -> Void,
+        modelStoreSet: ((Value) async throws -> Void)?
     ) async throws -> Value?
     where Store: ObservableStore, Store.Key == Key, Store.PublishKey == QueryId {
         let key = await store.map(key: unmappedKey)
@@ -93,7 +93,7 @@ private extension Query {
         // Don't do anything if the data is fresh enough and the variables haven't changed.
         guard await shouldGet(
             strategy: strategy,
-            ageOfStore: await store.age(of: key),
+            ageOfStore: try await store.age(of: key),
             variablesChanged: variablesChanged,
             isPaging: isPaging
         ) else {
@@ -115,10 +115,10 @@ private extension Query {
             }
             // If a closure was provided to populate the value models, do so.
             if let modelStoreSet {
-                await modelStoreSet(value)
+                try await modelStoreSet(value)
             }
             // Then, set the new value to the observable store.
-            await storeSet(key, value)
+            try await storeSet(key, value)
             return value
         } catch var error as AppError {
             // On error, apply the error intent
@@ -168,7 +168,7 @@ public extension Query {
             willGet: willGet,
             storeSet: { storeKey, value in
                 // Here we explicitly pass the value as `Value`, since `Store.Value == Value`
-                await store.set(key: storeKey, value: value)
+                try await store.set(key: storeKey, value: value)
             },
             modelStoreSet: nil
         )
@@ -236,11 +236,11 @@ public extension Query {
             willGet: willGet,
             storeSet: { storeKey, value in
                 // For this version, we pass `value.value`, since `Store.Value == Value.Value`
-                await store.set(key: storeKey, value: value.value)
+                try await store.set(key: storeKey, value: value.value)
             },
             modelStoreSet: { value in
                 for model in value.models {
-                    await modelStore.set(key: model.id, value: model)
+                    try await modelStore.set(key: model.id, value: model)
                 }
             }
         )

@@ -17,13 +17,13 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
     where MutationId: Hashable, Variables: Hashable {
     // MARK: - API
 
-    public func mutate(id: MutationId, variables: Variables) async {
-        guard let value = await store.get(key: id) else {
+    public func mutate(id: MutationId, variables: Variables) async throws {
+        guard let value = try await store.get(key: id) else {
             assertionFailure()
             return
         }
         let newValue = localMutation(variables, value)
-        await store.set(key: id, value: newValue)
+        try await store.set(key: id, value: newValue)
         let requestId = UUID()
         var collateral = mutationCollaterals[id] ?? {
             let collateral = MutationCollateral(
@@ -36,7 +36,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
         collateral.requestId = requestId
         mutationCollaterals[id] = collateral
         if await collateral.debounce.send((variables, newValue)) {
-            await performRemoteMutation(id: id, requestId: requestId, variables: variables, newValue: newValue)
+            try await performRemoteMutation(id: id, requestId: requestId, variables: variables, newValue: newValue)
         }
     }
 
@@ -106,7 +106,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
 
     // MARK: - Remote mutation
 
-    private func performRemoteMutation(id: MutationId, requestId: UUID, variables: Variables, newValue: Value) async {
+    private func performRemoteMutation(id: MutationId, requestId: UUID, variables: Variables, newValue: Value) async throws {
         do {
             let value = try await remoteMutation(variables, newValue)
             guard var collateral = mutationCollaterals[id] else {
@@ -114,7 +114,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
             }
             if collateral.requestId == requestId {
                 mutationCollaterals[id] = nil
-                await store.set(key: id, value: value)
+                try await store.set(key: id, value: value)
             } else {
                 collateral.fallbackValue = value
                 mutationCollaterals[id] = collateral
@@ -127,7 +127,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
             }
             if collateral.requestId == requestId {
                 mutationCollaterals[id] = nil
-                await store.set(key: id, value: collateral.fallbackValue)
+                try await store.set(key: id, value: collateral.fallbackValue)
             }
             subject.send(ResultType(mutationId: id, variables: variables, result: .failure(error)))
         }

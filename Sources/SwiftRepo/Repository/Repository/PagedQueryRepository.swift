@@ -34,14 +34,14 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
         errorIntent: ErrorIntent,
         queryStrategy _: QueryStrategy? = nil,
         willGet: @escaping () async -> Void
-    ) async {
+    ) async throws {
         // Evict stale data when getting the first page.
         if !variables.isPaging {
             let key = keyFactory(queryId, variables)
-            await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+            try await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
         }
         // Ignore the `queryStrategy` parameter for now, forcing `.ifNotStored`. No other strategy makes sense with paging.
-        await repository.get(
+        try await repository.get(
             queryId: queryId,
             variables: variables,
             errorIntent: errorIntent,
@@ -54,12 +54,12 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
     public func publisher(for queryId: QueryId, setCurrent key: Key) -> AnyPublisher<ValueResult, Never> {
         // Evict stale data before returning the publisher to ensure that stale data isn't displayed
         // before `get` is called.
-        observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+        try? observableStore.evict(for: key, ifOlderThan: ifOlderThan)
         return repository.publisher(for: queryId, setCurrent: key)
     }
 
-    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
-        await repository.prefetch(queryId: queryId, variables: variables, errorIntent: errorIntent)
+    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async throws {
+        try await repository.prefetch(queryId: queryId, variables: variables, errorIntent: errorIntent)
     }
 
     /// Creates a paged query repository for variables that adopt `HasCursorPaginationInput` and store key `QueryStoreKey<QueryId, Variables>`.

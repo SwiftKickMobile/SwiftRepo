@@ -22,20 +22,20 @@ public protocol Store<Key, Value> {
     ///   - value: the value to store. Pass `nil` to delete any existing value.
     @MainActor
     @discardableResult
-    func set(key: Key, value: Value?) -> Value?
+    func set(key: Key, value: Value?) throws -> Value?
 
     /// Get a value from the cache.
     /// - Parameter key: the unique key
     /// - Returns: the current value contained in the store. Returns `nil` if there is no value.
     @MainActor
-    func get(key: Key) -> Value?
+    func get(key: Key) throws -> Value?
 
     /// Returns the age of the current value assigned to the given key
     @MainActor
-    func age(of key: Key) -> TimeInterval?
+    func age(of key: Key) throws -> TimeInterval?
 
     /// Removes all values. Does not publish any changes.
-    func clear() async
+    func clear() async throws
 
     /// Return all keys that exist in the store.
     @MainActor

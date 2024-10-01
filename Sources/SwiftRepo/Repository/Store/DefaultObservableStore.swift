@@ -21,22 +21,22 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
 
     @MainActor
     @discardableResult
-    public func set(key: Key, value: Value?) -> Value? {
-        actorSet(key: map(key: key), value: value, isSettingCurrentKey: false)
+    public func set(key: Key, value: Value?) throws -> Value? {
+        try actorSet(key: map(key: key), value: value, isSettingCurrentKey: false)
     }
 
     @MainActor
-    public func get(key: Key) -> Value? {
-        store.get(key: map(key: key))
+    public func get(key: Key) throws -> Value? {
+        try store.get(key: map(key: key))
     }
 
     @MainActor
-    public func age(of key: Key) -> TimeInterval? {
-        store.age(of: map(key: key))
+    public func age(of key: Key) throws -> TimeInterval? {
+        try store.age(of: map(key: key))
     }
 
-    public func clear() async {
-        await store.clear()
+    public func clear() async throws {
+        try await store.clear()
     }
 
     @MainActor
@@ -50,12 +50,18 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
             .filter { [weak self] in self?.publishKeyMapping($0.key) == publishKey }
             .map(\.result)
             .eraseToAnyPublisher()
-        if let key = currentKey[publishKey], let current = store.get(key: key) {
-            // Prepend the current value to the sequence.
-            return Publishers.Merge(Just(.success(current)), publisher)
+        do {
+            if let key = currentKey[publishKey], let current = try store.get(key: key) {
+                // Prepend the current value to the sequence.
+                return Publishers.Merge(Just(.success(current)), publisher)
+                    .eraseToAnyPublisher()
+            } else {
+                return publisher.eraseToAnyPublisher()
+            }
+        } catch {
+            // Prepend the error to the sequence.
+            return Publishers.Merge(Just(.failure(error)), publisher)
                 .eraseToAnyPublisher()
-        } else {
-            return publisher.eraseToAnyPublisher()
         }
     }
 
@@ -80,7 +86,7 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
             let result = StoreResult(key: self.map(key: unmappedResult.key), result: unmappedResult.result)
             switch result.result {
             case let .success(value):
-                self.set(key: result.key, value: value)
+                try self.set(key: result.key, value: value)
             case .failure:
                 self.subject.send(result)
             }
@@ -96,7 +102,7 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
             Task { [weak self] in
                 guard let self = self else { return }
                 let key = value[keyPath: keyField]
-                await self.set(key: self.map(key: key), value: value)
+                try await self.set(key: self.map(key: key), value: value)
             }
             return .unlimited
         } receiveCompletion: { _ in
@@ -132,25 +138,25 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
     }
 
     @MainActor
-    public func evict(for key: Key, ifOlderThan: TimeInterval) {
-        guard let ageOf = store.age(of: key) else { return }
+    public func evict(for key: Key, ifOlderThan: TimeInterval) throws {
+        guard let ageOf = try store.age(of: key) else { return }
         if ageOf > ifOlderThan {
-            store.set(key: key, value: nil)
+            try store.set(key: key, value: nil)
         }
     }
 
-    public func mutate(publishKey: PublishKey, mutation: (Key, Value) -> Value?) async {
+    public func mutate(publishKey: PublishKey, mutation: (Key, Value) -> Value?) async throws {
         let timestamp = Date().timeIntervalSince1970
         for key in await keys(for: publishKey) {
             let elapsedTime = Date().timeIntervalSince1970 - timestamp
-            guard let value = await store.get(key: key),
-                  (await store.age(of: key) ?? TimeInterval.greatestFiniteMagnitude) > elapsedTime,
+            guard let value = try await store.get(key: key),
+                  (try await store.age(of: key) ?? TimeInterval.greatestFiniteMagnitude) > elapsedTime,
                   let mutatedValue = mutation(key, value) else { continue }
             switch await currentKey[publishKey] == key {
             case true:
-                await actorSet(key: key, value: mutatedValue, isSettingCurrentKey: false)
+                try await actorSet(key: key, value: mutatedValue, isSettingCurrentKey: false)
             case false:
-                await store.set(key: key, value: mutatedValue)
+                try await store.set(key: key, value: mutatedValue)
             }
         }
     }
@@ -226,12 +232,12 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
 
     @MainActor
     @discardableResult
-    private func actorSet(key: Key, value: Value?, isSettingCurrentKey: Bool) -> Value? {
-        let currentValue = store.get(key: key)
+    private func actorSet(key: Key, value: Value?, isSettingCurrentKey: Bool) throws -> Value? {
+        let currentValue = try store.get(key: key)
         let updatedValue: Value?
         switch isSettingCurrentKey {
         case true: updatedValue = value
-        case false: updatedValue = store.set(key: key, value: value)
+        case false: updatedValue = try store.set(key: key, value: value)
         }
         currentKey[publishKeyMapping(key)] = value.map { _ in key }
         if let updatedValue = updatedValue {
@@ -260,9 +266,13 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
         // Nothing to do here if the key doesn’t exist in the store. We explicitly do not check if the incoming
         // key is equal to the current key because if has been a query error, we need to publish the value again
         // in order to clear the error.
-        let value = store.get(key: key)
-        print("XXXX CACHE \(value == nil ? "MISS" : "HIT") key=\(key)")
-        // There are no new values being stored, so there is no need to write to store.
-        actorSet(key: key, value: value, isSettingCurrentKey: true)
+        do {
+            let value = try store.get(key: key)
+            print("XXXX CACHE \(value == nil ? "MISS" : "HIT") key=\(key)")
+            // There are no new values being stored, so there is no need to write to store.
+            try actorSet(key: key, value: value, isSettingCurrentKey: true)
+        } catch {
+            subject.send(StoreResult(key: key, result: .failure(error)))
+        }
     }
 }
