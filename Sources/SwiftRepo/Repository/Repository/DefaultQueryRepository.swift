@@ -7,38 +7,6 @@ import Combine
 import Foundation
 import Core
 
-import SwiftData
-
-// TODO: TIM Ideally decouple this name from "swift data"
-// TODO: TIM Move these somewhere
-public protocol SwiftDataStoreModel: PersistentModel {
-    associatedtype Key = any Hashable
-
-    var id: Key { get }
-    var updatedAt: Date { get set }
-    static func predicate(key: Key) -> Predicate<Self>
-}
-
-public extension SwiftDataStoreModel where Key == UUID {
-
-    static func predicate(key: Key) -> Predicate<Self> {
-        #Predicate<Self> { model in
-            model.id == key
-        }
-    }
-}
-
-public protocol ModelResponse {
-    associatedtype Value
-    associatedtype Model: SwiftDataStoreModel
-
-    var value: Value { get }
-    var models: [Model] { get }
-}
-/// TODO
-
-// TODO: TIM Eliminate unused state variables
-
 /// The default `QueryRepository` implementation.
 public final class DefaultQueryRepository<QueryId, Variables, Key, Value>: QueryRepository
 where QueryId: Hashable, Variables: Hashable, Key: Hashable {
@@ -103,7 +71,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         valueVariablesFactory: ValueVariablesFactory<QueryValue>?,
         keyFactory: @escaping KeyFactory,
         foo: String
-    ) where Model: SwiftDataStoreModel, QueryValue: ModelResponse, Model == QueryValue.Model, Value == QueryValue.Value  {
+    ) where Model: StoreModel, QueryValue: ModelResponse, Model == QueryValue.Model, Value == QueryValue.Value  {
         self.observableStore = observableStore
         self.queryStrategy = queryStrategy
         self.keyFactory = keyFactory
