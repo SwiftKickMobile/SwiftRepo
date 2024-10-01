@@ -7,14 +7,46 @@ import Combine
 import Foundation
 import Core
 
+import SwiftData
+
+// TODO: TIM Ideally decouple this name from "swift data"
+// TODO: TIM Move these somewhere
+public protocol SwiftDataStoreModel: PersistentModel {
+    associatedtype Key = any Hashable
+
+    var id: Key { get }
+    var updatedAt: Date { get set }
+    static func predicate(key: Key) -> Predicate<Self>
+}
+
+public extension SwiftDataStoreModel where Key == UUID {
+
+    static func predicate(key: Key) -> Predicate<Self> {
+        #Predicate<Self> { model in
+            model.id == key
+        }
+    }
+}
+
+public protocol ModelResponse {
+    associatedtype Value
+    associatedtype Model: SwiftDataStoreModel
+
+    var value: Value { get }
+    var models: [Model] { get }
+}
+/// TODO
+
+// TODO: TIM Eliminate unused state variables
+
 /// The default `QueryRepository` implementation.
 public final class DefaultQueryRepository<QueryId, Variables, Key, Value>: QueryRepository
 where QueryId: Hashable, Variables: Hashable, Key: Hashable {
-    
+
     // MARK: - API
 
     /// The type-erased query type.
-    public typealias QueryType = any Query<QueryId, Variables, Value>
+    public typealias QueryType<QueryValue> = any Query<QueryId, Variables, QueryValue>
 
     /// The type-erased observable store type.
     public typealias ObservableStoreType = any ObservableStore<Key, QueryId, Value>
@@ -29,21 +61,72 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     /// sorting and filtering service calls where the client allows the service to select default variables and send them back in the response. These use
     /// cases create a condition where two variables means the same thing. This closure give the repo the ability to detect these situations as they
     /// happen and add key mappings to the observable store via `observableStore.addMapping(from:to:)`
-    public typealias ValueVariablesFactory = (_ queryId: QueryId, _ variables: Variables, _ value: Value) -> Variables
+    public typealias ValueVariablesFactory<FactoryValue> = (_ queryId: QueryId, _ variables: Variables, _ value: FactoryValue) -> Variables
 
     /// Creates a query repository. There are simplified convenience initializers, so this one is typically not called directly.
     public init(
         observableStore: ObservableStoreType,
-        query: QueryType,
+        query: QueryType<Value>,
         queryStrategy: QueryStrategy,
-        valueVariablesFactory: ValueVariablesFactory?,
+        valueVariablesFactory: ValueVariablesFactory<Value>?,
         keyFactory: @escaping KeyFactory
     ) {
         self.observableStore = observableStore
-        self.query = query
         self.queryStrategy = queryStrategy
-        self.valueVariablesFactory = valueVariablesFactory
         self.keyFactory = keyFactory
+        preGet = { queryId, variables in
+            guard let key = queryId as? Key else { return }
+            if await query.latestVariables(for: queryId) != variables {
+                await observableStore.set(key: key, value: nil)
+            }
+        }
+        get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
+            _ = try await query.get(
+                id: queryId,
+                variables: variables,
+                into: observableStore,
+                keyedBy: key,
+                valueVariablesFactory: valueVariablesFactory,
+                keyFactory: keyFactory,
+                errorIntent: errorIntent,
+                strategy: queryStrategy,
+                willGet: willGet
+            )
+        }
+    }
+
+    public init<Model, QueryValue>(
+        observableStore: ObservableStoreType,
+        modelStore: any Store<Model.Key, Model>,
+        query: QueryType<QueryValue>,
+        queryStrategy: QueryStrategy,
+        valueVariablesFactory: ValueVariablesFactory<QueryValue>?,
+        keyFactory: @escaping KeyFactory,
+        foo: String
+    ) where Model: SwiftDataStoreModel, QueryValue: ModelResponse, Model == QueryValue.Model, Value == QueryValue.Value  {
+        self.observableStore = observableStore
+        self.queryStrategy = queryStrategy
+        self.keyFactory = keyFactory
+        preGet = { queryId, variables in
+            guard let key = queryId as? Key else { return }
+            if await query.latestVariables(for: queryId) != variables {
+                await observableStore.set(key: key, value: nil)
+            }
+        }
+        get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
+            _ = try await query.get(
+                id: queryId,
+                variables: variables,
+                into: observableStore,
+                modelStore: modelStore,
+                keyedBy: key,
+                valueVariablesFactory: valueVariablesFactory,
+                keyFactory: keyFactory,
+                errorIntent: errorIntent,
+                strategy: queryStrategy,
+                willGet: willGet
+            )
+        }
     }
 
     /// Creates a query repository when the store key is equivalent to the query ID. Use this when caching only the most recently used variables for a given query ID.
@@ -129,10 +212,22 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     // MARK: - Variables
 
     private let observableStore: ObservableStoreType
-    private let query: QueryType
     private let queryStrategy: QueryStrategy
-    private let valueVariablesFactory: ValueVariablesFactory?
     private let keyFactory: (_ queryId: QueryId, _ variables: Variables) -> Key
+
+    let preGet: (
+        _ queryId: QueryId,
+        _ variables: Variables
+    ) async -> Void
+
+    private let get: (
+        _ key: Key,
+        _ queryId: QueryId,
+        _ variables: Variables,
+        _ errorIntent: ErrorIntent,
+        _ queryStrategy: QueryStrategy,
+        _ willGet: @escaping Query.WillGet
+    ) async throws -> Void
 
     // MARK: - QueryRepository
 
@@ -145,17 +240,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ) async {
         let key = keyFactory(queryId, variables)
         do {
-            _ = try await query.get(
-                id: queryId,
-                variables: variables,
-                into: observableStore,
-                keyedBy: key,
-                valueVariablesFactory: valueVariablesFactory,
-                keyFactory: keyFactory,
-                errorIntent: errorIntent,
-                strategy: queryStrategy ?? self.queryStrategy,
-                willGet: willGet
-            )
+            try await get(key, queryId, variables, errorIntent, queryStrategy ?? self.queryStrategy, willGet)
         } catch let error as QueryError where error == .cancelled {
             // Don't publish cancellation errors – we have no use case for needing to know about this
             // and including them would force view models to remember to ignore cancellation errors.
@@ -186,9 +271,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         variables: Variables,
         errorIntent: ErrorIntent = .dispensable
     ) async where Key == QueryId {
-        if await query.latestVariables(for: queryId) != variables {
-            await observableStore.set(key: queryId, value: nil)
-        }
+        await preGet(queryId, variables)
         await get(
             queryId: queryId,
             variables: variables,

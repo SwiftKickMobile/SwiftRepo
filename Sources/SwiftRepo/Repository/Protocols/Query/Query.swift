@@ -145,6 +145,91 @@ public extension Query {
     }
 }
 
+// TODO: TIM Combine common logic into one private reusable function
+public extension Query {
+    @discardableResult
+    func get<Store, Key, ModelStore>(
+        id: QueryId,
+        variables: Variables,
+        into store: Store,
+        modelStore: ModelStore,
+        keyedBy unmappedKey: Key,
+        valueVariablesFactory: ((QueryId, Variables, Value) -> Variables)?,
+        keyFactory: @escaping (QueryId, Variables) -> Key,
+        errorIntent: ErrorIntent,
+        strategy: QueryStrategy,
+        willGet: WillGet?
+    ) async throws -> Value?
+    where Value: ModelResponse,
+          Store: ObservableStore,
+          Store.Value == Value.Value,
+          Store.Key == Key,
+          Store.PublishKey == QueryId,
+          ModelStore: SwiftRepo.Store,
+          ModelStore.Value == Value.Model,
+          ModelStore.Key == Value.Model.Key
+    {
+        let key = await store.map(key: unmappedKey)
+        // Set the current key to this query's key. If the key exists in the store and is not already the current
+        // key, the new current value will be published.
+        await store.set(currentKey: key)
+        let variablesChanged: Bool
+        // We have two techniques for determining if the query variables have changed. When using `QueryStoreKey`, the variables
+        // are part of the key, so we just check if the key is changing. For all other keys, we rely on comparing the incoming variables
+        // to the latest variables used in the query.
+        if let queryStoreKey = key as? QueryStoreKey<QueryId, Variables> {
+            let currentKey = await store.currentKey(for: id) as? QueryStoreKey<QueryId, Variables>
+            variablesChanged = queryStoreKey != currentKey
+        } else {
+            let latestVariables = await latestVariables(for: id)
+            variablesChanged = variables != latestVariables
+        }
+        let isPaging: Bool = {
+            switch variables as? HasCursorPaginationInput {
+            case let variables?: return variables.isPaging
+            case .none: return false
+            }
+        }()
+        // Don't do anything if the data is fresh enough and the variables haven't changed.
+        guard await shouldGet(
+            strategy: strategy,
+            ageOfStore: await store.age(of: key),
+            variablesChanged: variablesChanged,
+            isPaging: isPaging
+        ) else {
+            // This closes a loophole:
+            // 1. There is an ongoing query with variables A
+            // 2. This function is called again with variables B
+            // 3. The store publishes a cached value for variables B
+            // 4. The ongoing query with variables A needs to be cancelled explicitly
+            //    since we're here and not peroforming a query with variables B
+            await cancel(id: id)
+            return nil
+        }
+        await willGet?()
+        do {
+            let value = try await get(id: id, variables: variables)
+            if let valueVariables = valueVariablesFactory?(id, variables, value) {
+                let valueKey = keyFactory(id, valueVariables)
+                await store.addMapping(from: valueKey, to: key)
+            }
+            await store.set(key: key, value: value.value)
+
+            do {
+                for model in value.models {
+                    await modelStore.set(key: model.id, value: model)
+                }
+            }
+
+            return value
+        } catch var error as AppError {
+            // On error, apply the error intent
+            error.intent = errorIntent
+            throw error
+        }
+    }
+}
+
 extension Query {
     private func shouldGet(
         strategy: QueryStrategy,
