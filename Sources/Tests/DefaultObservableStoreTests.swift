@@ -160,7 +160,7 @@ class DefaultObservableStoreTests: XCTestCase {
         try await store.set(key: key1A, value: key1A)
         try await store.set(key: key1B, value: key1B)
         try await store.set(key: key2, value: key2)
-        let keys = await store.keys(for: publishKey1)
+        let keys = try await store.keys(for: publishKey1)
         XCTAssertEqual(keys.sorted(), [key1A, key1B].sorted())
     }
 

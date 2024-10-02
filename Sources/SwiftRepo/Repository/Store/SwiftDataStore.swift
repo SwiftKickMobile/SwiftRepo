@@ -15,6 +15,8 @@ import Core
 public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentModel, Model.Key: Hashable {
     public typealias Key = Model.Key
     public typealias Value = Model
+    /// A closure that defines how new values are merged into existing values.
+    public typealias Merge = (_ new: Value, _ into: Value) -> Void
     
     public var keys: [Key] {
         get throws {
@@ -24,8 +26,10 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     
     /// Creates a `SwiftData` store based on the provided `ModelContainer`
     /// - Parameter modelContainer: the `ModelContainer` to use when storing `Model`s
-    public init(modelContainer: ModelContainer) {
+    /// - Parameter merge: the optional operation to merge a new value into an existing value
+    public init(modelContainer: ModelContainer, merge: Merge?) {
         self.modelContext = ModelContext(modelContainer)
+        self.merge = merge
     }
     
     public func set(key: Key, value: Value?) throws -> Value? {
@@ -34,13 +38,12 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
             return nil
         }
         
-        if let existingValue = try get(key: key) {
+        if let existingValue = try get(key: key), let merge {
             // If the store contains an existing value for this key,
             // merge the two as necessary and save the resulting value.
-            let mergedValue = Value.merge(existing: existingValue, new: value)
-            try evict(for: key)
-            modelContext.insert(mergedValue)
+            merge(value, existingValue)
         } else {
+            try evict(for: key)
             modelContext.insert(value)
         }
         try modelContext.save()
@@ -68,6 +71,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     // MARK: - Variables
     
     private let modelContext: ModelContext
+    private let merge: Merge?
     
     // MARK: - Helpers
     
