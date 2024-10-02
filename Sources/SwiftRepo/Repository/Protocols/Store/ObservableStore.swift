@@ -37,7 +37,7 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     func publisher(for publishKey: PublishKey) -> AnyPublisher<ValueResult, Never>
 
     /// Publishes results for all keys. Does not publish current values.
-    var publisher: AnyPublisher<ValueResult, Never> { get }
+    var publisher: AnyPublisher<StoreResultType, Never> { get }
 
     /// Publishes changes for the specified publish key. The store implementation is responsible for knowing how to map from key to publish key
     /// in order to route stored values to the revevant publishers.
@@ -141,7 +141,9 @@ public extension ObservableStore {
         keyField: KeyPath<Value, Key>,
         store: some ObservableStore<Key, PublishKey, Value>
     ) where Value: HasMutatedAt, ValueResult: SuccessConvertible, ValueResult.Success == [Value] {
-        publisher.success()
+        publisher
+            .map(\.result)
+            .success()
             .flatMap(\.publisher)
             .receive(subscriber: store.newValueSubscriber(keyField: keyField))
     }
@@ -173,7 +175,9 @@ public extension ObservableStore {
         keyField: KeyPath<Value, Key>,
         store: some ObservableStore<Key, PublishKey, Value>
     ) where Value: HasMutatedAt, ValueResult: SuccessConvertible, ValueResult.Success == Success {
-        publisher.success()
+        publisher
+            .map(\.result)
+            .success()
             .map { $0[keyPath: fromField] }
             .flatMap(\.publisher)
             .receive(subscriber: store.newValueSubscriber(keyField: keyField))

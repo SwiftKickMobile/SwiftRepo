@@ -67,9 +67,8 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
         }
     }
 
-    public var publisher: AnyPublisher<ValueResult, Never> {
+    public var publisher: AnyPublisher<StoreResultType, Never> {
         subject
-            .map(\.result)
             .eraseToAnyPublisher()
     }
 
