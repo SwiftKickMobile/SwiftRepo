@@ -166,11 +166,11 @@ class IndefiniteControllerTests: XCTestCase {
     // MARK: - Variables
 
     private var exceededDelayChanged: [Bool] = []
-    // swiftlint:disable implicitly_unwrapped_optional
     private var controller: IndefiniteController!
 
     // MARK: - Lifecycle
 
+    @MainActor
     override func setUp() {
         super.setUp()
         exceededDelayChanged = []

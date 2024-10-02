@@ -4,6 +4,7 @@
 
 import Swift
 import XCTest
+import Test
 @testable import SwiftRepo
 
 class IndefiniteControllerRandomTests: XCTestCase {
@@ -22,14 +23,14 @@ class IndefiniteControllerRandomTests: XCTestCase {
 
     // MARK: - Tests
 
-//    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
-//    /// We must keep this commented out when checking in changes.
+    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
+    /// We must keep this commented out when checking in changes.
 //    func test_randomizer() async throws {
 //        try await performRandom(raceConditions: false)
 //    }
-//
-//    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
-//    /// We must keep this commented out when checking in changes.
+
+    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
+    /// We must keep this commented out when checking in changes.
 //    func test_randomizerWithRaceConditions() async throws {
 //        try await performRandom(raceConditions: true)
 //    }
@@ -59,6 +60,7 @@ class IndefiniteControllerRandomTests: XCTestCase {
 
     // MARK: - Lifecycle
 
+    @MainActor
     override func setUp() {
         super.setUp()
         isRunningChanged = []

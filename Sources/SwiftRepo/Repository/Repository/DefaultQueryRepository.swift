@@ -62,16 +62,17 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
             )
         }
     }
-
+    
+    /// Creates a query repository whose published values differ from those placed in the underlying store.
+    /// There are simplified convenience initializers, so this one is typically not called directly.
     public init<Model, QueryValue>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
         query: QueryType<QueryValue>,
         queryStrategy: QueryStrategy,
         valueVariablesFactory: ValueVariablesFactory<QueryValue>?,
-        keyFactory: @escaping KeyFactory,
-        foo: String
-    ) where Model: StoreModel, QueryValue: ModelResponse, Model == QueryValue.Model, Value == QueryValue.Value  {
+        keyFactory: @escaping KeyFactory
+    ) where Model: StoreModel, QueryValue: ModelResponse, Model == QueryValue.Model, Value == QueryValue.Value {
         self.observableStore = observableStore
         self.queryStrategy = queryStrategy
         self.keyFactory = keyFactory
@@ -104,12 +105,34 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ///   - queryStrategy: The query strategy to use.
     ///   - queryOperation: The operation to use to perform the actual query.
     public convenience init(
-        observableStore: any ObservableStore<Key, Key, Value>,
+        observableStore: ObservableStoreType,
         queryStrategy: QueryStrategy,
         queryOperation: @escaping (Variables) async throws -> Value
     ) where Key == QueryId {
         self.init(
             observableStore: observableStore,
+            query: DefaultQuery(queryOperation: queryOperation),
+            queryStrategy: queryStrategy,
+            valueVariablesFactory: nil
+        ) { queryId, _ in queryId }
+    }
+    
+    /// Creates a query repository when the store key is equivalent to the query ID. Use this when caching only the most recently used variables for a given query ID.
+    ///
+    /// - Parameters:
+    ///   - observableStore: The underlying `ObservableStore` implementation to use.
+    ///   - modelStore: The underlying `Store` implementation to use for models.
+    ///   - queryStrategy: The query strategy to use.
+    ///   - queryOperation: The operation to use to perform the actual query.
+    public convenience init<Model>(
+        observableStore: ObservableStoreType,
+        modelStore: any Store<Model.Key, Model>,
+        queryStrategy: QueryStrategy,
+        queryOperation: @escaping (Variables) async throws -> Value
+    ) where Model: StoreModel, Value: ModelResponse, Model == Value.Model, Key == QueryId, Value == Value.Value {
+        self.init(
+            observableStore: observableStore,
+            modelStore: modelStore,
             query: DefaultQuery(queryOperation: queryOperation),
             queryStrategy: queryStrategy,
             valueVariablesFactory: nil

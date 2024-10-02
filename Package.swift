@@ -29,5 +29,22 @@ let package = Package(
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
         ),
+        .target(
+            name: "Test",
+            swiftSettings: [
+                .unsafeFlags(["-enable-library-evolution"]),
+            ]
+        ),
+        .testTarget(
+            name: "Tests",
+            dependencies: [
+                .target(name: "Core"),
+                .target(name: "Test"),
+                .target(name: "SwiftRepo")
+            ],
+            swiftSettings: [
+                .unsafeFlags(["-enable-library-evolution"]),
+            ]
+        ),
     ]
 )
