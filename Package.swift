@@ -17,29 +17,29 @@ let package = Package(
         .target(
             name: "SwiftRepo",
             dependencies: [
-                .target(name: "Core")
+                .target(name: "SwiftRepoCore")
             ],
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
         ),
         .target(
-            name: "Core",
+            name: "SwiftRepoCore",
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
         ),
         .target(
-            name: "Test",
+            name: "SwiftRepoTest",
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
         ),
         .testTarget(
-            name: "Tests",
+            name: "SwiftRepoTests",
             dependencies: [
-                .target(name: "Core"),
-                .target(name: "Test"),
+                .target(name: "SwiftRepoCore"),
+                .target(name: "SwiftRepoTest"),
                 .target(name: "SwiftRepo")
             ],
             swiftSettings: [
