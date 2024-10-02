@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// A mutation implementation that optimistically updates the store using the supplied `localMutation` closure and performs the serive mutation
 /// using the supplied `remoteMutation` closure. If multiple rapid mutation calls are made, the store will be updated optimistically for each call, but

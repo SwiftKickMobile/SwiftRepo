@@ -4,7 +4,7 @@
 //
 
 import SwiftUI
-import Core
+import SwiftRepoCore
 
 /// The default error view to use with title, message and retry button.
 public struct LoadingErrorView: View {

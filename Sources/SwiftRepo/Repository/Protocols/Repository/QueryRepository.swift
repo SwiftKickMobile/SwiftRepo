@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// A single-use query repository.
 ///

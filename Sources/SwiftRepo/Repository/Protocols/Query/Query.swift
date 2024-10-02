@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 public enum QueryError: String, Error {
     case cancelled

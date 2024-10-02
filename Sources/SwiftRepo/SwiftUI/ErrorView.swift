@@ -6,7 +6,7 @@
 //
 
 import SwiftUI
-import Core
+import SwiftRepoCore
 
 public struct ErrorView: View {
     

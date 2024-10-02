@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Core
+import SwiftRepoCore
 
 public struct TestError: AppError, Equatable {
     
@@ -16,7 +16,7 @@ public struct TestError: AppError, Equatable {
     
     public var isNotable: Bool = true
     
-    public var uiError: (any Core.UIError)?
+    public var uiError: (any SwiftRepoCore.UIError)?
     
     public var category: Category
     

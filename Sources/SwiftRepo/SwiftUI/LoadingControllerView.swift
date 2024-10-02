@@ -5,7 +5,7 @@
 
 import Combine
 import SwiftUI
-import Core
+import SwiftRepoCore
 
 /// A compaining view to be used with `LoadingController` that provides default loading, error and empty
 /// states and state transitions. The loading, error and empty states may be customized if needed.

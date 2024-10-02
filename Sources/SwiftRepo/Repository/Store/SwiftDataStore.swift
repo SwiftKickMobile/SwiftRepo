@@ -8,7 +8,7 @@
 import Foundation
 import Combine
 import SwiftData
-import Core
+import SwiftRepoCore
 
 @MainActor
 // An implementation of `Store` that uses `SwiftData` under the hood

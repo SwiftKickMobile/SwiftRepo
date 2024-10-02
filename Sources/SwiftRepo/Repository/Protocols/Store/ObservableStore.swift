@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// A sub-protocol of `Store` for in-memory and/or persistent caching of key/value pairs and publishing changes over time.
 ///
