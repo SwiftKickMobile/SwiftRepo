@@ -228,7 +228,8 @@ class DefaultQueryRepositoryTests: XCTestCase {
         }
     }
     
-    /// Makes a repository that stores a single value per unique query ID.
+    /// Makes a repository that stores a single value per unique query ID,
+    /// and places ModelResponse values in a separate model store.
     private func makeModelResponseStoreRepository(
         queryStrategy: QueryStrategy = .ifOlderThan(0.1),
         delayedValues: DelayedValues<TestModelResponse>
