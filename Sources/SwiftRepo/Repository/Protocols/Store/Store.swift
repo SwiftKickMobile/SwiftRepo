@@ -5,9 +5,6 @@
 
 import Foundation
 
-// TODO Change `get()`, `set()` and `clear()` to a throwing functions to better support persistent storage
-// TODO Change `get()` and set `set()` to async to better support persistent storage?
-
 /// An interface for in-memory and/or persistent storage of key/value pairs.
 public protocol Store<Key, Value> {
     /// The type of key used by the store.
