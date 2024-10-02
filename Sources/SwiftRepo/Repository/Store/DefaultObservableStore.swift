@@ -41,7 +41,9 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
 
     @MainActor
     public var keys: [Key] {
-        store.keys
+        get throws {
+            try store.keys
+        }
     }
 
     @MainActor
@@ -133,8 +135,8 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
     }
 
     @MainActor
-    public func keys(for publishKey: PublishKey) -> [Key] {
-        keys.filter { publishKey == publishKeyMapping($0) }
+    public func keys(for publishKey: PublishKey) throws -> [Key] {
+        try keys.filter { publishKey == publishKeyMapping($0) }
     }
 
     @MainActor
@@ -147,7 +149,7 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
 
     public func mutate(publishKey: PublishKey, mutation: (Key, Value) -> Value?) async throws {
         let timestamp = Date().timeIntervalSince1970
-        for key in await keys(for: publishKey) {
+        for key in try await keys(for: publishKey) {
             let elapsedTime = Date().timeIntervalSince1970 - timestamp
             guard let value = try await store.get(key: key),
                   (try await store.age(of: key) ?? TimeInterval.greatestFiniteMagnitude) > elapsedTime,

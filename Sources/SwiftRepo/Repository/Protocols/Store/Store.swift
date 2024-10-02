@@ -36,5 +36,5 @@ public protocol Store<Key, Value> {
 
     /// Return all keys that exist in the store.
     @MainActor
-    var keys: [Key] { get }
+    var keys: [Key] { get throws }
 }
