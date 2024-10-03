@@ -9,75 +9,77 @@ import SwiftRepoCore
 
 /// A compaining view to be used with `LoadingController` that provides default loading, error and empty
 /// states and state transitions. The loading, error and empty states may be customized if needed.
-public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorContent, EmptyContent>: View
-    where DataType: Emptyable & Equatable, Content: View, LoadingContent: View, ErrorContent: View, EmptyContent: View {
-    
-    // MARK: - API
+public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorContent, EmptyContent, UIErrorType: UIError>: View
+where DataType: Emptyable & Equatable, Content: View, LoadingContent: View, ErrorContent: View, EmptyContent: View {
 
-    public typealias Refresh = () async -> Void
+// MARK: - API
 
-    /// Create a loading controller view with custom content, loading, error and empty views.
-    public init(
-        state: LoadingController<DataType>.State,
-        shouldPresentAlert: Bool = true,
-        refresh: Refresh?,
-        @ViewBuilder content: @escaping (DataType, Binding<(any UIError)?>) -> Content,
-        @ViewBuilder loadingContent: @escaping () -> LoadingContent,
-        @ViewBuilder errorContent: @escaping (any UIError) -> ErrorContent,
-        @ViewBuilder emptyContent: @escaping () -> EmptyContent
-    ) {
-        self.state = state
-        self.shouldPresentAlert = shouldPresentAlert
-        self.refresh = refresh
-        self.content = content
-        self.loadingContent = loadingContent
-        self.errorContent = errorContent
-        self.emptyContent = emptyContent
-    }
+public typealias Refresh = () async -> Void
 
-    // MARK: - Constants
+/// Create a loading controller view with custom content, loading, error and empty views.
+public init(
+    state: LoadingController<DataType>.State,
+    shouldPresentAlert: Bool = true,
+    refresh: Refresh?,
+    @ViewBuilder content: @escaping (DataType, Binding<UIErrorType?>) -> Content,
+    @ViewBuilder loadingContent: @escaping () -> LoadingContent,
+    @ViewBuilder errorContent: @escaping (UIErrorType) -> ErrorContent,
+    @ViewBuilder emptyContent: @escaping () -> EmptyContent
+) {
+    self.state = state
+    self.shouldPresentAlert = shouldPresentAlert
+    self.refresh = refresh
+    self.content = content
+    self.loadingContent = loadingContent
+    self.errorContent = errorContent
+    self.emptyContent = emptyContent
+}
 
-    // MARK: - Variables
+// MARK: - Constants
 
-    private let state: LoadingController<DataType>.State
-    private let shouldPresentAlert: Bool
-    private let refresh: Refresh?
-    @ViewBuilder private let content: (DataType, Binding<(any UIError)?>) -> Content
-    @ViewBuilder private let errorContent: (any UIError) -> ErrorContent
-    @ViewBuilder private let emptyContent: () -> EmptyContent
-    @ViewBuilder private let loadingContent: () -> LoadingContent
-    @State private var loadedErrorData: (any UIError)?
+// MARK: - Variables
 
-    // MARK: - Body
+private let state: LoadingController<DataType>.State
+private let shouldPresentAlert: Bool
+private let refresh: Refresh?
+@ViewBuilder private let content: (DataType, Binding<UIErrorType?>) -> Content
+@ViewBuilder private let errorContent: (UIErrorType) -> ErrorContent
+@ViewBuilder private let emptyContent: () -> EmptyContent
+@ViewBuilder private let loadingContent: () -> LoadingContent
+@State private var loadedErrorData: (UIErrorType)?
 
-    public var body: some View {
-        loadingControllerView
-            .onChange(of: state) { loadedErrorData = state.loadedIndispensableUIError }
-    }
+// MARK: - Body
 
-    private var loadingControllerView: some View {
-        ZStack {
-            switch state {
-            case let .loading(isHidden):
-                loadingContent().opacity(isHidden ? 0 : 1)
-            case let .loaded(data, _, _):
-                content(data, $loadedErrorData)
-            case .empty:
-                switch state.uiError {
-                case let data?: errorContent(data)
-                case .none: emptyContent()
-                }
+public var body: some View {
+    loadingControllerView
+        .onChange(of: state) { loadedErrorData = state.loadedIndispensableUIError as? UIErrorType }
+}
+
+private var loadingControllerView: some View {
+    ZStack {
+        switch state {
+        case let .loading(isHidden):
+            loadingContent().opacity(isHidden ? 0 : 1)
+        case let .loaded(data, _, _):
+            content(data, $loadedErrorData)
+        case .empty:
+            if let error = state.uiError as? UIErrorType {
+                errorContent(error)
+            } else {
+                emptyContent()
             }
-        }
-        // Make this view greedy so that it occupies the same space across all loading states.
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // This keeps animations together if new animations are created while other animations are in progress.
-        .geometryGroup()
-        .animation(.default, value: state)
-        .refreshable {
-            await refresh?()
+        default: EmptyView()
         }
     }
+    // Make this view greedy so that it occupies the same space across all loading states.
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    // This keeps animations together if new animations are created while other animations are in progress.
+    .geometryGroup()
+    .animation(.default, value: state)
+    .refreshable {
+        await refresh?()
+    }
+}
 }
 
 struct LoadingControllerView_Previews: PreviewProvider {
@@ -89,7 +91,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
                 Text(data)
             },
             loadingContent: { Text("Loading") },
-            errorContent: { _ in Text("Error!") },
+            errorContent: { (_: DefaultUIError) in Text("Error!") },
             emptyContent: { EmptyView() }
         )
         LoadingControllerView(
@@ -99,7 +101,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
                 Text(data)
             },
             loadingContent: { Text("Loading") },
-            errorContent: { _ in Text("Error!") },
+            errorContent: { (_: DefaultUIError) in Text("Error!") },
             emptyContent: { EmptyView() }
         )
         LoadingControllerView(
@@ -109,7 +111,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
                 Text(data)
             },
             loadingContent: { Text("Loading") },
-            errorContent: { _ in Text("Error!") },
+            errorContent: { (_: DefaultUIError) in Text("Error!") },
             emptyContent: { EmptyView() }
         )
         LoadingControllerView(
@@ -119,7 +121,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
                 Text(data)
             },
             loadingContent: { Text("Loading") },
-            errorContent: { _ in Text("Error!") },
+            errorContent: { (_: DefaultUIError) in Text("Error!") },
             emptyContent: { EmptyView() }
         )
     }
