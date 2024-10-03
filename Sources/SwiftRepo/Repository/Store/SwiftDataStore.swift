@@ -30,7 +30,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     public init(modelContainer: ModelContainer, merge: Merge?) {
         self.modelContainer = modelContainer
         self.merge = merge
-        self.timestampStore = TimestampStore(modelType: Model.self)
+        self.timestampStore = PersistentStore<Key, UUID>(id: String(describing: Model.self))
     }
     
     @MainActor
@@ -50,7 +50,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
         }
         try modelContext.save()
         // Update the timestamp store when values are updated
-        try timestampStore.set(key: key, value: Date())
+        try timestampStore.set(key: key, value: UUID())
         return value
     }
     
@@ -61,8 +61,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     
     @MainActor
     public func age(of key: Key) throws -> TimeInterval? {
-        guard let updatedAt = try timestampStore.get(key: key) else { return nil }
-        return Date.now.timeIntervalSince(updatedAt)
+        try timestampStore.age(of: key)
     }
     
     @MainActor
@@ -79,7 +78,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     private var _modelContext: ModelContext?
     private let modelContainer: ModelContainer
     private let merge: Merge?
-    private let timestampStore: TimestampStore<Model.Key>
+    private let timestampStore: PersistentStore<Model.Key, UUID>
     
     @MainActor
     private var modelContext: ModelContext {
