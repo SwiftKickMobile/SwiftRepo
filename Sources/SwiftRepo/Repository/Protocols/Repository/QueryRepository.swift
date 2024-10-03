@@ -37,7 +37,7 @@ public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult 
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy?,
         willGet: @escaping Query.WillGet
-    ) async throws
+    ) async
 
     /// Publishes results for the given query identifier. The publisher's first element will be the currently stored value, if any, at the time of the `publisher(for:setCurrent:)` call.
     ///
@@ -58,7 +58,7 @@ public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult 
     ///   - queryId: the query identifier
     ///   - variables: the query variables
     ///   - errorIntent: The error intent to apply to errors that are thrown by the query
-    func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent) async throws
+    func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent) async
 }
 
 public extension QueryRepository {
@@ -69,8 +69,8 @@ public extension QueryRepository {
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
         willGet: @escaping Query.WillGet
-    ) async throws {
-        try await get(
+    ) async {
+        await get(
             queryId: queryId,
             variables: variables,
             errorIntent: errorIntent,
@@ -79,8 +79,8 @@ public extension QueryRepository {
         )
     }
     
-    func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async throws {
-        try await prefetch(queryId: queryId, variables: variables, errorIntent: errorIntent)
+    func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
+        await prefetch(queryId: queryId, variables: variables, errorIntent: errorIntent)
     }
 }
 
