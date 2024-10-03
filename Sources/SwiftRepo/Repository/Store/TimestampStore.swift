@@ -9,9 +9,9 @@ import Foundation
 import SwiftData
 
 /// A persistent `Store` implementation implementation using `SwiftData`.
-class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
+public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
-    var keys: [Key] {
+    public var keys: [Key] {
         get throws {
             try modelContext.fetch(FetchDescriptor<TimestampedValue>()).compactMap {
                 guard let key = try? decoder.decode(Key.self, from: $0.key) else {
@@ -23,7 +23,7 @@ class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
         }
     }
     
-    init<T: PersistentModel>(
+    public init<T: PersistentModel>(
         modelType: T.Type,
         encoder: JSONEncoder = JSONEncoder(),
         decoder: JSONDecoder = JSONDecoder()
@@ -38,7 +38,7 @@ class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     }
     
     @MainActor
-    func get(key: Key) throws -> Value? {
+    public func get(key: Key) throws -> Value? {
         let keyData = try encoder.encode(key)
         guard let valueData = try modelContext.fetch(
             FetchDescriptor(predicate: TimestampedValue.predicate(forKeyData: keyData))
@@ -48,7 +48,7 @@ class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     @discardableResult
     @MainActor
-    func set(key: Key, value: Value?) throws -> Value? {
+    public func set(key: Key, value: Value?) throws -> Value? {
         if let value {
             try modelContext.insert(TimestampedValue(key: key, value: value, encoder: encoder))
             try modelContext.save()
@@ -60,7 +60,7 @@ class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     }
     
     @MainActor
-    func age(of key: Key) throws -> TimeInterval? {
+    public func age(of key: Key) throws -> TimeInterval? {
         let keyData = try encoder.encode(key)
         let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValue.predicate(forKeyData: keyData)))
         guard let result = result.first else { return nil }
@@ -68,7 +68,7 @@ class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     }
     
     @MainActor
-    func clear() async throws {
+    public func clear() async throws {
         try modelContext.delete(model: TimestampedValue.self)
         try modelContext.save()
     }
