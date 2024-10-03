@@ -74,8 +74,8 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
         willGet: @escaping () async -> Void
-    ) async throws {
-        try await repository.get(
+    ) async {
+        await repository.get(
             queryId: variables,
             variables: variables,
             errorIntent: errorIntent,
@@ -89,7 +89,7 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
         repository.publisher(for: variables, setCurrent: variables)
     }
 
-    public func prefetch(variables: Variables, errorIntent: ErrorIntent = .dispensable) async throws {
-        try await repository.prefetch(queryId: variables, variables: variables, errorIntent: errorIntent)
+    public func prefetch(variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
+        await repository.prefetch(queryId: variables, variables: variables, errorIntent: errorIntent)
     }
 }

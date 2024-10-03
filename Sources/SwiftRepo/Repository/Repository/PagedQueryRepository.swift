@@ -35,14 +35,24 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
         errorIntent: ErrorIntent,
         queryStrategy _: QueryStrategy? = nil,
         willGet: @escaping () async -> Void
-    ) async throws {
+    ) async {
         // Evict stale data when getting the first page.
         if !variables.isPaging {
-            let key = keyFactory(queryId, variables)
-            try observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+            do {
+                let key = keyFactory(queryId, variables)
+                try await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+            } catch {
+                // Any errors on prefetch can be propagated through the publisher.
+                let key = keyFactory(queryId, variables)
+                let result = StoreResult<Key, Value, Error>(key: key, failure: error)
+                _ = observableStore.subscriber
+                    .receive(result)
+                // Return early on error
+                return
+            }
         }
         // Ignore the `queryStrategy` parameter for now, forcing `.ifNotStored`. No other strategy makes sense with paging.
-        try await repository.get(
+        await repository.get(
             queryId: queryId,
             variables: variables,
             errorIntent: errorIntent,
@@ -59,8 +69,8 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
         return repository.publisher(for: queryId, setCurrent: key)
     }
 
-    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async throws {
-        try await repository.prefetch(queryId: queryId, variables: variables, errorIntent: errorIntent)
+    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
+        await repository.prefetch(queryId: queryId, variables: variables, errorIntent: errorIntent)
     }
 
     /// Creates a paged query repository for variables that adopt `HasCursorPaginationInput` and store key `QueryStoreKey<QueryId, Variables>`.

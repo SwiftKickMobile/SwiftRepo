@@ -229,7 +229,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
         willGet: @escaping Query.WillGet
-    ) async throws {
+    ) async {
         let key = keyFactory(queryId, variables)
         do {
             try await get(key, queryId, variables, errorIntent, queryStrategy ?? self.queryStrategy, willGet)
@@ -248,8 +248,8 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         return observableStore.publisher(for: queryId)
     }
 
-    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async throws {
-        try await get(
+    public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
+        await get(
             queryId: queryId,
             variables: variables,
             errorIntent: errorIntent
@@ -262,12 +262,20 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         queryId: QueryId,
         variables: Variables,
         errorIntent: ErrorIntent = .dispensable
-    ) async throws where Key == QueryId {
-        try await preGet(queryId, variables)
-        try await get(
-            queryId: queryId,
-            variables: variables,
-            errorIntent: errorIntent
-        ) {}
+    ) async where Key == QueryId {
+        do {
+            try await preGet(queryId, variables)
+            await get(
+                queryId: queryId,
+                variables: variables,
+                errorIntent: errorIntent
+            ) {}
+        } catch {
+            // Any errors on prefetch can be propagated through the publisher.
+            let key = keyFactory(queryId, variables)
+            let result = StoreResult<Key, Value, Error>(key: key, failure: error)
+            _ = observableStore.subscriber
+                .receive(result)
+        }
     }
 }
