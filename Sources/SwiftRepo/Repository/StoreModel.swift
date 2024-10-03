@@ -15,21 +15,14 @@ public protocol StoreModel {
     /// The identifier of the model
     var id: Key { get }
     /// A predicate that can be used to query for the `StoreModel`
-    static func predicate(key: Key, olderThan: TimeInterval?) -> Predicate<Self>
+    static func predicate(key: Key) -> Predicate<Self>
 }
 
 public extension StoreModel where Key == UUID {
 
-    static func predicate(key: Key, olderThan: TimeInterval?) -> Predicate<Self> {
-        if let olderThan {
-            let olderThanDate = Date().advanced(by: -olderThan)
-            return #Predicate<Self> { model in
-                model.id == key && model.updatedAt < olderThanDate
-            }
-        } else {
-            return #Predicate<Self> { model in
-                model.id == key
-            }
+    static func predicate(key: Key) -> Predicate<Self> {
+        #Predicate<Self> { model in
+            model.id == key
         }
     }
 }

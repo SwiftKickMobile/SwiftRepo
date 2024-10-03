@@ -26,6 +26,24 @@ class SwiftDataStoreTests: XCTestCase {
         let _ = try store.set(key: model.id, value: model2)
         XCTAssertTrue(stored?.merged == true && stored?.updatedAt == model2.updatedAt)
     }
+    
+    func test_timestamp() async throws {
+        let store = makeStore()
+        let uuid = UUID()
+        let model = TestStoreModel(id: uuid)
+        let _ = try store.set(key: model.id, value: model)
+        let stored = try store.get(key: model.id)
+        XCTAssertTrue(stored?.merged == false)
+        
+        let updatedAt = try store.age(of: uuid)
+        XCTAssertNotNil(updatedAt)
+        
+        let model2 = TestStoreModel(id: uuid)
+        let _ = try store.set(key: model.id, value: model2)
+        let updatedAt2 = try store.age(of: uuid)
+        XCTAssertNotNil(updatedAt2)
+        XCTAssertNotEqual(updatedAt, updatedAt2)
+    }
 
     // MARK: - Constants
     
