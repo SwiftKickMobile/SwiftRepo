@@ -10,7 +10,6 @@ import Combine
 import SwiftData
 import SwiftRepoCore
 
-@MainActor
 // An implementation of `Store` that uses `SwiftData` under the hood
 public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentModel, Model.Key: Hashable & Codable {
     public typealias Key = Model.Key
@@ -18,6 +17,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     /// A closure that defines how new values are merged into existing values.
     public typealias Merge = (_ new: Value, _ into: Value) -> Void
     
+    @MainActor
     public var keys: [Key] {
         get throws {
             try modelContext.fetch(FetchDescriptor<Model>()).map { $0.id }
@@ -28,11 +28,12 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     /// - Parameter modelContainer: the `ModelContainer` to use when storing `Model`s
     /// - Parameter merge: the optional operation to merge a new value into an existing value
     public init(modelContainer: ModelContainer, merge: Merge?) {
-        self.modelContext = ModelContext(modelContainer)
+        self.modelContainer = modelContainer
         self.merge = merge
         self.timestampStore = TimestampStore(url: modelContainer.configurations.first?.url, modelType: Model.self)
     }
     
+    @MainActor
     public func set(key: Key, value: Value?) throws -> Value? {
         guard let value else {
             try evict(for: key)
@@ -53,15 +54,18 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
         return value
     }
     
+    @MainActor
     public func get(key: Key) throws -> Value? {
         return try modelContext.fetch(FetchDescriptor(predicate: Value.predicate(key: key))).first
     }
     
+    @MainActor
     public func age(of key: Key) throws -> TimeInterval? {
         guard let updatedAt = try timestampStore.get(key: key) else { return nil }
         return Date.now.timeIntervalSince(updatedAt)
     }
     
+    @MainActor
     public func clear() async throws {
         try modelContext.delete(model: Value.self)
         try modelContext.save()
@@ -71,12 +75,26 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     
     // MARK: - Variables
     
-    private let modelContext: ModelContext
+    @MainActor
+    private var _modelContext: ModelContext?
+    private let modelContainer: ModelContainer
     private let merge: Merge?
     private let timestampStore: TimestampStore<Model.Key>
     
+    @MainActor
+    private var modelContext: ModelContext {
+        if let _modelContext {
+            return _modelContext
+        } else {
+            let context = ModelContext(modelContainer)
+            _modelContext = context
+            return context
+        }
+    }
+    
     // MARK: - Helpers
     
+    @MainActor
     private func evict(for key: Key) throws {
         let predicate = Value.predicate(key: key)
         try modelContext.delete(model: Value.self, where: predicate)
