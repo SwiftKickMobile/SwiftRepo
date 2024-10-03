@@ -8,14 +8,13 @@
 import Foundation
 import SwiftData
 
-/// A `Store` implementation using `SwiftData` which can be used specifically to
-/// track timestamps related to models persisted using the `SwiftDataStore`.
-class TimestampStore<Key: Codable & Hashable>: Store {
+/// A persistent `Store` implementation implementation using `SwiftData`.
+class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     var keys: [Key] {
         get throws {
-            try modelContext.fetch(FetchDescriptor<Timestamp>()).compactMap {
-                guard let key = try? JSONDecoder().decode(Key.self, from: $0.key) else {
+            try modelContext.fetch(FetchDescriptor<TimestampedValue>()).compactMap {
+                guard let key = try? decoder.decode(Key.self, from: $0.key) else {
                     try? evict(for: $0.key)
                     return nil
                 }
@@ -24,75 +23,102 @@ class TimestampStore<Key: Codable & Hashable>: Store {
         }
     }
     
-    init<T: PersistentModel>(modelType: T.Type) {
+    init<T: PersistentModel>(
+        modelType: T.Type,
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder()
+    ) {
         let storeName: String = "TimestampStore-\(String(describing: modelType))"
-        let modelContainer = try! ModelContainer(
-            for: Timestamp.self,
+        self.modelContainer = try! ModelContainer(
+            for: TimestampedValue.self,
             configurations: .init(storeName)
         )
-        modelContext = ModelContext(modelContainer)
+        self.encoder = encoder
+        self.decoder = decoder
     }
     
-    func get(key: Key) throws -> Date? {
-        let keyData = try JSONEncoder().encode(key)
-        return try modelContext.fetch(
-            FetchDescriptor(predicate: Timestamp.predicate(forKeyData: keyData))
-        ).first?.timestamp
+    @MainActor
+    func get(key: Key) throws -> Value? {
+        let keyData = try encoder.encode(key)
+        guard let valueData = try modelContext.fetch(
+            FetchDescriptor(predicate: TimestampedValue.predicate(forKeyData: keyData))
+        ).first else { return nil }
+        return try decoder.decode(Value.self, from: valueData.value)
     }
     
     @discardableResult
+    @MainActor
     func set(key: Key, value: Value?) throws -> Value? {
         if let value {
-            try modelContext.insert(Timestamp(key: key, timestamp: value))
+            try modelContext.insert(TimestampedValue(key: key, value: value, encoder: encoder))
             try modelContext.save()
         } else {
-            let keyData = try JSONEncoder().encode(key)
+            let keyData = try encoder.encode(key)
             try evict(for: keyData)
         }
         return value
     }
     
+    @MainActor
     func age(of key: Key) throws -> TimeInterval? {
-        let keyData = try JSONEncoder().encode(key)
-        let result = try modelContext.fetch(FetchDescriptor(predicate: Timestamp.predicate(forKeyData: keyData)))
+        let keyData = try encoder.encode(key)
+        let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValue.predicate(forKeyData: keyData)))
         guard let result = result.first else { return nil }
         return Date.now.timeIntervalSince(result.timestamp)
     }
     
+    @MainActor
     func clear() async throws {
-        try modelContext.delete(model: Timestamp.self)
+        try modelContext.delete(model: TimestampedValue.self)
         try modelContext.save()
     }
     
     // MARK: - Constants
     
     @Model
-    class Timestamp {
-        #Index<Timestamp>([\.key])
+    class TimestampedValue {
+        #Index<TimestampedValue>([\.key])
         
         @Attribute(.unique)
         var key: Data
-        var timestamp: Date
+        var timestamp = Date()
+        var value: Data
         
-        init(key: Key, timestamp: Date) throws {
-            let key: Data = try JSONEncoder().encode(key)
+        init(key: Key, value: Value, encoder: JSONEncoder) throws {
+            let key: Data = try encoder.encode(key)
+            let value: Data = try encoder.encode(value)
             self.key = key
-            self.timestamp = timestamp
+            self.value = value
         }
         
-        static func predicate(forKeyData keyData: Data) throws -> Predicate<Timestamp> {
+        static func predicate(forKeyData keyData: Data) throws -> Predicate<TimestampedValue> {
             return #Predicate { $0.key == keyData }
         }
     }
     
     // MARK: - Variables
     
-    private let modelContext: ModelContext
+    private let modelContainer: ModelContainer
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+    private var _modelContext: ModelContext?
+    
+    @MainActor
+    private var modelContext: ModelContext {
+        if let _modelContext {
+            return _modelContext
+        } else {
+            let context = ModelContext(modelContainer)
+            _modelContext = context
+            return context
+        }
+    }
     
     // MARK: - Helpers
     
+    @MainActor
     private func evict(for keyData: Data) throws {
-        try modelContext.delete(model: Timestamp.self, where: Timestamp.predicate(forKeyData: keyData))
+        try modelContext.delete(model: TimestampedValue.self, where: TimestampedValue.predicate(forKeyData: keyData))
         try modelContext.save()
     }
 }
