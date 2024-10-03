@@ -68,6 +68,7 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
 
     // MARK: - VariableQueryRepository
 
+    @MainActor
     public func get(
         variables: Variables,
         errorIntent: ErrorIntent,

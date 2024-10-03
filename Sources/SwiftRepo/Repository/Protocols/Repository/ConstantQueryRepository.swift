@@ -23,6 +23,7 @@ public protocol ConstantQueryRepository<Variables, Value>: HasValueResult {
     ///   - willGet: a callback that is invoked if the query is performed.
     ///
     ///   When using a loading controller, the function `loadingController.loading` should be passed to the `willGet` parameter.
+    @MainActor
     func get(errorIntent: ErrorIntent, queryStrategy: QueryStrategy?, willGet: @escaping Query.WillGet) async
 
     /// Publishes results. The publisher's first element will be the currently stored value, if any, at the time of the `publisher()` call.
@@ -43,6 +44,7 @@ public protocol ConstantQueryRepository<Variables, Value>: HasValueResult {
 
 public extension ConstantQueryRepository {
     
+    @MainActor
     func get(
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
