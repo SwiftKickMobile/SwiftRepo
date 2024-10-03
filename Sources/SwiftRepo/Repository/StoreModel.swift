@@ -12,9 +12,8 @@ public protocol StoreModel {
     /// The type to use as the identifier for the model
     associatedtype Key = any Hashable
 
+    /// The identifier of the model
     var id: Key { get }
-    var updatedAt: Date { get set }
-    
     /// A predicate that can be used to query for the `StoreModel`
     static func predicate(key: Key, olderThan: TimeInterval?) -> Predicate<Self>
 }
