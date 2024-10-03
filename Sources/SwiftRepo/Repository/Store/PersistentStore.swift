@@ -1,5 +1,5 @@
 //
-//  TimestampStore.swift
+//  PersistentStore.swift
 //  SwiftRepo
 //
 //  Created by Carter Foughty on 10/2/24.
@@ -23,12 +23,12 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
         }
     }
     
-    public init<T: PersistentModel>(
-        modelType: T.Type,
+    public init(
+        id: String,
         encoder: JSONEncoder = JSONEncoder(),
         decoder: JSONDecoder = JSONDecoder()
     ) {
-        let storeName: String = "TimestampStore-\(String(describing: modelType))"
+        let storeName: String = "PersistentStore-\(id)"
         self.modelContainer = try! ModelContainer(
             for: TimestampedValue.self,
             configurations: .init(storeName)
