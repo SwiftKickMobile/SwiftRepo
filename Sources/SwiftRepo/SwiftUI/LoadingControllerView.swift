@@ -11,87 +11,24 @@ import Core
 /// states and state transitions. The loading, error and empty states may be customized if needed.
 public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorContent, EmptyContent>: View
     where DataType: Emptyable & Equatable, Content: View, LoadingContent: View, ErrorContent: View, EmptyContent: View {
-
+    
     // MARK: - API
 
-    public typealias Retry = () async -> Void
-    public typealias ContentClosure = (DataType, (any UIError)?, Bool) -> Content
-
-    /// Create a loading controller view with custom content. Uses default loading, error, and empty views.
-    public init(
-        state: LoadingController<DataType>.State,
-        shouldPresentAlert: Bool = true,
-        retry: Retry?,
-        @ViewBuilder content: @escaping ContentClosure
-    ) where LoadingContent == LoadingView, ErrorContent == LoadingErrorView, EmptyContent == EmptyView {
-        self.state = state
-        self.shouldPresentAlert = shouldPresentAlert
-        self.content = content
-        loadingContent = { LoadingView() }
-        errorContent = { LoadingErrorView(error: $0, retry: retry) }
-        emptyContent = { EmptyView() }
-    }
-
-    /// Create a loading controller view with custom content and empty view. Uses default loading and error views.
-    public init(
-        state: LoadingController<DataType>.State,
-        shouldPresentAlert: Bool = true,
-        retry: Retry?,
-        @ViewBuilder content: @escaping ContentClosure,
-        @ViewBuilder emptyContent: @escaping () -> EmptyContent
-    ) where LoadingContent == LoadingView, ErrorContent == LoadingErrorView {
-        self.state = state
-        self.shouldPresentAlert = shouldPresentAlert
-        self.content = content
-        self.emptyContent = emptyContent
-        loadingContent = { LoadingView() }
-        errorContent = { LoadingErrorView(error: $0, retry: retry) }
-    }
-
-    /// Create a loading controller view with custom content and loading view. Uses default error and empty views.
-    public init(
-        state: LoadingController<DataType>.State,
-        shouldPresentAlert: Bool = true,
-        retry: Retry?,
-        @ViewBuilder content: @escaping ContentClosure,
-        @ViewBuilder loadingContent: @escaping () -> LoadingContent
-    ) where ErrorContent == LoadingErrorView, EmptyContent == EmptyView {
-        self.state = state
-        self.shouldPresentAlert = shouldPresentAlert
-        self.content = content
-        self.loadingContent = loadingContent
-        errorContent = { LoadingErrorView(error: $0, retry: retry) }
-        emptyContent = { EmptyView() }
-    }
+    public typealias Refresh = () async -> Void
 
     /// Create a loading controller view with custom content, loading, error and empty views.
     public init(
         state: LoadingController<DataType>.State,
         shouldPresentAlert: Bool = true,
-        retry: Retry?,
-        @ViewBuilder content: @escaping ContentClosure,
-        @ViewBuilder loadingContent: @escaping () -> LoadingContent,
-        @ViewBuilder emptyContent: @escaping () -> EmptyContent
-    ) where ErrorContent == LoadingErrorView {
-        self.state = state
-        self.shouldPresentAlert = shouldPresentAlert
-        self.content = content
-        self.loadingContent = loadingContent
-        errorContent = { LoadingErrorView(error: $0, retry: retry) }
-        self.emptyContent = emptyContent
-    }
-
-    /// Create a loading controller view with custom content, loading, error and empty views.
-    public init(
-        state: LoadingController<DataType>.State,
-        shouldPresentAlert: Bool = true,
-        @ViewBuilder content: @escaping ContentClosure,
+        refresh: Refresh?,
+        @ViewBuilder content: @escaping (DataType, Binding<(any UIError)?>) -> Content,
         @ViewBuilder loadingContent: @escaping () -> LoadingContent,
         @ViewBuilder errorContent: @escaping (any UIError) -> ErrorContent,
         @ViewBuilder emptyContent: @escaping () -> EmptyContent
     ) {
         self.state = state
         self.shouldPresentAlert = shouldPresentAlert
+        self.refresh = refresh
         self.content = content
         self.loadingContent = loadingContent
         self.errorContent = errorContent
@@ -104,20 +41,18 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
 
     private let state: LoadingController<DataType>.State
     private let shouldPresentAlert: Bool
-    @ViewBuilder private let content: ContentClosure
+    private let refresh: Refresh?
+    @ViewBuilder private let content: (DataType, Binding<(any UIError)?>) -> Content
     @ViewBuilder private let errorContent: (any UIError) -> ErrorContent
     @ViewBuilder private let emptyContent: () -> EmptyContent
     @ViewBuilder private let loadingContent: () -> LoadingContent
+    @State private var loadedErrorData: (any UIError)?
 
     // MARK: - Body
 
     public var body: some View {
         loadingControllerView
-//            .if(shouldPresentAlert) { view in
-//            Text("TODO REPO")
-//// Need a solution for this that doesn't explicitly depend on SwiftMessages
-////            view.loadedAlert(state: state)
-//        }
+            .onChange(of: state) { loadedErrorData = state.loadedIndispensableUIError }
     }
 
     private var loadingControllerView: some View {
@@ -125,8 +60,8 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
             switch state {
             case let .loading(isHidden):
                 loadingContent().opacity(isHidden ? 0 : 1)
-            case let .loaded(data, _, isUpdating):
-                content(data, state.uiError, isUpdating)
+            case let .loaded(data, _, _):
+                content(data, $loadedErrorData)
             case .empty:
                 switch state.uiError {
                 case let data?: errorContent(data)
@@ -134,10 +69,14 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
                 }
             }
         }
-        // This resolves a SwiftUI bug (still around as of iOS 17) with async animations by effectively
-        // forcing the content view to be nested in a `UIView` in the UIKit rendering engine.
-        .transformEffect(/*@START_MENU_TOKEN@*/.identity/*@END_MENU_TOKEN@*/)
+        // Make this view greedy so that it occupies the same space across all loading states.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // This keeps animations together if new animations are created while other animations are in progress.
+        .geometryGroup()
         .animation(.default, value: state)
+        .refreshable {
+            await refresh?()
+        }
     }
 }
 
@@ -145,36 +84,43 @@ struct LoadingControllerView_Previews: PreviewProvider {
     static var previews: some View {
         LoadingControllerView(
             state: .loaded("Loaded", nil, isUpdating: false),
-            retry: {},
-            content: { data, error, isUpdating in
+            refresh: {},
+            content: { data, _ in
                 Text(data)
-            }
+            },
+            loadingContent: { Text("Loading") },
+            errorContent: { _ in Text("Error!") },
+            emptyContent: { EmptyView() }
         )
         LoadingControllerView(
             state: .loading(isHidden: false),
-            retry: {},
-            content: { (data: String, error, isUpdating) in
+            refresh: {},
+            content: { (data: String, _) in
                 Text(data)
-            }
+            },
+            loadingContent: { Text("Loading") },
+            errorContent: { _ in Text("Error!") },
+            emptyContent: { EmptyView() }
         )
         LoadingControllerView(
             state: .empty(nil),
-            retry: {},
-            content: { (data: String, error, isUpdating) in
+            refresh: {},
+            content: { (data: String, _) in
                 Text(data)
-            }
+            },
+            loadingContent: { Text("Loading") },
+            errorContent: { _ in Text("Error!") },
+            emptyContent: { EmptyView() }
         )
         LoadingControllerView(
-            state: .empty(
-                DefaultUIError(
-                    message: "Houston, we have a problem.",
-                    isRetryable: true
-                )
-            ),
-            retry: {},
-            content: { (data: String, error, isUpdating) in
+            state: .empty(NSError(domain: "foo", code: URLError.Code.timedOut.rawValue, userInfo: nil)),
+            refresh: {},
+            content: { (data: String, _) in
                 Text(data)
-            }
+            },
+            loadingContent: { Text("Loading") },
+            errorContent: { _ in Text("Error!") },
+            emptyContent: { EmptyView() }
         )
     }
 }
