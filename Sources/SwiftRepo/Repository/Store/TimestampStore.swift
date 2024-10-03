@@ -14,44 +14,47 @@ class TimestampStore<Key: Codable & Hashable>: Store {
     
     var keys: [Key] {
         get throws {
-            try modelContext.fetch(FetchDescriptor<Timestamp>()).map { $0.key }
+            try modelContext.fetch(FetchDescriptor<Timestamp>()).compactMap {
+                guard let key = try? JSONDecoder().decode(Key.self, from: $0.key) else {
+                    try? evict(for: $0.key)
+                    return nil
+                }
+                return key
+            }
         }
     }
     
-    init<T: PersistentModel>(url: URL?, modelType: T.Type) {
+    init<T: PersistentModel>(modelType: T.Type) {
         let storeName: String = "TimestampStore-\(String(describing: modelType))"
-        if let url {
-            let modelContainer = try! ModelContainer(
-                for: Timestamp.self,
-                configurations: .init(storeName, url: url)
-            )
-            modelContext = ModelContext(modelContainer)
-        } else {
-            let modelContainer = try! ModelContainer(
-                for: Timestamp.self,
-                configurations: .init(storeName)
-            )
-            modelContext = ModelContext(modelContainer)
-        }
+        let modelContainer = try! ModelContainer(
+            for: Timestamp.self,
+            configurations: .init(storeName)
+        )
+        modelContext = ModelContext(modelContainer)
     }
     
     func get(key: Key) throws -> Date? {
-        return try modelContext.fetch(FetchDescriptor(predicate: Timestamp.predicate(forKey: key))).first?.timestamp
+        let keyData = try JSONEncoder().encode(key)
+        return try modelContext.fetch(
+            FetchDescriptor(predicate: Timestamp.predicate(forKeyData: keyData))
+        ).first?.timestamp
     }
     
     @discardableResult
     func set(key: Key, value: Value?) throws -> Value? {
         if let value {
-            modelContext.insert(Timestamp(key: key, timestamp: value))
+            try modelContext.insert(Timestamp(key: key, timestamp: value))
             try modelContext.save()
         } else {
-            try evict(for: key)
+            let keyData = try JSONEncoder().encode(key)
+            try evict(for: keyData)
         }
         return value
     }
     
     func age(of key: Key) throws -> TimeInterval? {
-        let result = try modelContext.fetch(FetchDescriptor(predicate: Timestamp.predicate(forKey: key)))
+        let keyData = try JSONEncoder().encode(key)
+        let result = try modelContext.fetch(FetchDescriptor(predicate: Timestamp.predicate(forKeyData: keyData)))
         guard let result = result.first else { return nil }
         return Date.now.timeIntervalSince(result.timestamp)
     }
@@ -68,16 +71,17 @@ class TimestampStore<Key: Codable & Hashable>: Store {
         #Index<Timestamp>([\.key])
         
         @Attribute(.unique)
-        var key: Key
+        var key: Data
         var timestamp: Date
         
-        init(key: Key, timestamp: Date) {
+        init(key: Key, timestamp: Date) throws {
+            let key: Data = try JSONEncoder().encode(key)
             self.key = key
             self.timestamp = timestamp
         }
         
-        static func predicate(forKey key: Key) -> Predicate<Timestamp> {
-            #Predicate { $0.key == key }
+        static func predicate(forKeyData keyData: Data) throws -> Predicate<Timestamp> {
+            return #Predicate { $0.key == keyData }
         }
     }
     
@@ -87,8 +91,8 @@ class TimestampStore<Key: Codable & Hashable>: Store {
     
     // MARK: - Helpers
     
-    private func evict(for key: Key) throws {
-        try modelContext.delete(model: Timestamp.self, where: Timestamp.predicate(forKey: key))
+    private func evict(for keyData: Data) throws {
+        try modelContext.delete(model: Timestamp.self, where: Timestamp.predicate(forKeyData: keyData))
         try modelContext.save()
     }
 }

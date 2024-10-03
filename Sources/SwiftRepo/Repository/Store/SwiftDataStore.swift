@@ -30,7 +30,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     public init(modelContainer: ModelContainer, merge: Merge?) {
         self.modelContainer = modelContainer
         self.merge = merge
-        self.timestampStore = TimestampStore(url: modelContainer.configurations.first?.url, modelType: Model.self)
+        self.timestampStore = TimestampStore(modelType: Model.self)
     }
     
     @MainActor
