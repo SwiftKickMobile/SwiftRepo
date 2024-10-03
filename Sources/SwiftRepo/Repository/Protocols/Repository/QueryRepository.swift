@@ -31,6 +31,7 @@ public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult 
     ///   - willGet: a callback that is invoked if the query is performed.
     ///
     ///   When using a loading controller, the function `loadingController.loading` should be passed to the `willGet` parameter.
+    @MainActor
     func get(
         queryId: QueryId,
         variables: Variables,
@@ -63,6 +64,7 @@ public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult 
 
 public extension QueryRepository {
     
+    @MainActor
     func get(
         queryId: QueryId,
         variables: Variables,
