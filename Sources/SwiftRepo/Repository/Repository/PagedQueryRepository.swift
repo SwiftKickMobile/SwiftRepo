@@ -28,6 +28,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
 
     public typealias ValueVariablesFactory = (_ queryId: QueryId, _ variables: Variables, _ value: Value) -> Variables
 
+    @MainActor
     public func get(
         queryId: QueryId,
         variables: Variables,
@@ -38,7 +39,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
         // Evict stale data when getting the first page.
         if !variables.isPaging {
             let key = keyFactory(queryId, variables)
-            try await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+            try observableStore.evict(for: key, ifOlderThan: ifOlderThan)
         }
         // Ignore the `queryStrategy` parameter for now, forcing `.ifNotStored`. No other strategy makes sense with paging.
         try await repository.get(
