@@ -17,7 +17,7 @@ public struct DefaultError<UIErrorType: UIError>: AppError {
         intent: ErrorIntent = .indispensable
     ) {
         self.uiError = uiError
-        self.error = error
+        self.error = error as? NSError
         self.isNotable = isNotable
         self.isRetryable = isRetryable
         self.intent = intent
@@ -35,7 +35,8 @@ public struct DefaultError<UIErrorType: UIError>: AppError {
     
     public var intent: ErrorIntent
 
-    public let error: Error?
+    // Using `NSError` allows us to be `Equatable`
+    public let error: NSError?
 
     public var localizedDescription: String {
         if let error {
