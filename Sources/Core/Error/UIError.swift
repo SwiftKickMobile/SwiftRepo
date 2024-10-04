@@ -9,7 +9,7 @@ import SwiftUI
 ///
 /// Use `DefaultUIError` or implement your own to have more rich
 /// data types including images, titles, etc.
-public protocol UIError: Error, Identifiable {
+public protocol UIError: Error, Identifiable, Hashable {
     var message: String { get }
     var isRetryable: Bool { get }
 }

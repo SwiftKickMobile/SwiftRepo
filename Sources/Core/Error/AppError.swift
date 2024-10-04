@@ -4,7 +4,7 @@
 
 import Foundation
 
-public protocol AppError: Error {
+public protocol AppError: Error, Equatable {
     associatedtype UIErrorType = UIError
     
     /// Optional error data to present to the user
