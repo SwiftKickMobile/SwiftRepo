@@ -99,24 +99,24 @@ public final actor PersistentStore<Wrapped>: Store {
     public typealias Value = PersistentValue<Wrapped>
 
     @MainActor
-    public func set(key: Key, value: Value?) -> Value? {
+    public func set(key: Key, value: Value?) throws -> Value? {
         switch value {
         case let value?:
             guard let wrapped = value.wrapped else { return nil }
-            secondLevelStore?.set(key: key, value: wrapped)
-            try? save(wrapped: wrapped, url: url(for: key))
+            try secondLevelStore?.set(key: key, value: wrapped)
+            try save(wrapped: wrapped, url: url(for: key))
             return value
         case .none:
-            secondLevelStore?.set(key: key, value: nil)
+            try secondLevelStore?.set(key: key, value: nil)
             let url = url(for: key)
-            try? FileManager.default.removeItem(atPath: url.path)
+            try FileManager.default.removeItem(atPath: url.path)
             return nil
         }
     }
 
     @MainActor
-    public func get(key: Key) -> Value? {
-        if let wrapped = secondLevelStore?.get(key: key) { return PersistentValue(initial: .wrapped(wrapped)) }
+    public func get(key: Key) throws -> Value? {
+        if let wrapped = try secondLevelStore?.get(key: key) { return PersistentValue(initial: .wrapped(wrapped)) }
         let url = url(for: key)
         switch FileManager.default.fileExists(atPath: url.path) {
         case true: return load(url: url)
@@ -125,20 +125,16 @@ public final actor PersistentStore<Wrapped>: Store {
     }
 
     @MainActor
-    public func age(of key: Key) -> TimeInterval? {
-        do {
-            let url = url(for: key)
-            let attr = try FileManager.default.attributesOfItem(atPath: url.path)
-            guard let date = attr[FileAttributeKey.modificationDate] as? Date else { return nil }
-            return Date().timeIntervalSince(date)
-        } catch {
-            return nil
-        }
+    public func age(of key: Key) throws -> TimeInterval? {
+        let url = url(for: key)
+        let attr = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard let date = attr[FileAttributeKey.modificationDate] as? Date else { return nil }
+        return Date().timeIntervalSince(date)
     }
 
-    public func clear() async {
-        await secondLevelStore?.clear()
-        try? FileManager.default.removeItem(atPath: location.directoryURL.path)
+    public func clear() async throws {
+        try await secondLevelStore?.clear()
+        try FileManager.default.removeItem(atPath: location.directoryURL.path)
         fatalError("TODO delete the directory")
     }
 

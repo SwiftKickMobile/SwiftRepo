@@ -31,7 +31,7 @@ public protocol MutationBase {
 /// instance of `Mutation`, which would in turn be responsible for making the service call.
 public protocol Mutation<MutationId, Variables, Value>: MutationBase {
     /// Called to perform the mutation
-    func mutate(id: MutationId, variables: Variables) async
+    func mutate(id: MutationId, variables: Variables) async throws
 
     /// Publishes results matching the specified mutation ID.
     /// - Parameter id: the mutation ID to match against.
