@@ -20,14 +20,14 @@ class DefaultQueryRepositoryTests: XCTestCase {
         ])
         var willGetCount = 0
         let willGet = { willGetCount += 1 }
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
         XCTAssertEqual(willGetCount, 1)
         XCTAssertEqual(spy.publishedValues, [valueA1])
         try await Task.sleep(for: .seconds(0.05))
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
         XCTAssertEqual(willGetCount, 1)
         try await Task.sleep(for: .seconds(0.1))
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
         XCTAssertEqual(willGetCount, 2)
         XCTAssertEqual(spy.publishedValues, [valueA1, valueA1, valueA1, valueA2])
     }
@@ -43,18 +43,46 @@ class DefaultQueryRepositoryTests: XCTestCase {
         let spy = PublisherSpy(repo.publisher(for: id, setCurrent: id).success())
         var willGetCount = 0
         let willGet = { willGetCount += 1 }
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
         XCTAssertEqual(willGetCount, 1)
         XCTAssertEqual(spy.publishedValues, [responseA.value])
         XCTAssertEqual(try modelStore.get(key: Self.modelAId), responseA.models.first)
         try await Task.sleep(for: .seconds(0.05))
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
         XCTAssertEqual(willGetCount, 1)
         try await Task.sleep(for: .seconds(0.1))
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
         XCTAssertEqual(willGetCount, 2)
         XCTAssertEqual(spy.publishedValues, [responseA.value, responseA.value, responseA.value, responseB.value])
         XCTAssertEqual(try modelStore.get(key: Self.modelAId), responseA.models.first)
+        XCTAssertEqual(try modelStore.get(key: Self.modelBId), responseB.models.first)
+        XCTAssertEqual(try modelStore.get(key: Self.modelCId), responseB.models.last)
+    }
+    
+    @MainActor
+    func test_GetSuccess_ModelResponse_Trim() async throws {
+        let repo = makeModelResponseStoreRepository(
+            mergeStrategy: .upsertTrim,
+            delayedValues: DelayedValues<TestModelResponse>(values: [
+                .makeValue(responseA),
+                .makeValue(responseB)
+            ])
+        )
+        let spy = PublisherSpy(repo.publisher(for: id, setCurrent: id).success())
+        var willGetCount = 0
+        let willGet = { willGetCount += 1 }
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        XCTAssertEqual(willGetCount, 1)
+        XCTAssertEqual(spy.publishedValues, [responseA.value])
+        XCTAssertEqual(try modelStore.get(key: Self.modelAId), responseA.models.first)
+        try await Task.sleep(for: .seconds(0.05))
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        XCTAssertEqual(willGetCount, 1)
+        try await Task.sleep(for: .seconds(0.1))
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        XCTAssertEqual(willGetCount, 2)
+        XCTAssertEqual(spy.publishedValues, [responseA.value, responseA.value, responseA.value, responseB.value])
+        XCTAssertEqual(try modelStore.get(key: Self.modelAId), nil)
         XCTAssertEqual(try modelStore.get(key: Self.modelBId), responseB.models.first)
         XCTAssertEqual(try modelStore.get(key: Self.modelCId), responseB.models.last)
     }
@@ -65,7 +93,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         delayedValues = DelayedValues<String>(values: [
             .makeError(TestError(category: .failure), delay: 0.1),
         ])
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable) {}
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable) {}
         try await Task.sleep(for: .seconds(0.1))
         XCTAssertEqual(spy.publishedValues.compactMap { $0 as? TestError }, [TestError(category: .failure)])
     }
@@ -77,7 +105,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
             ])
         )
         let spy = PublisherSpy<Error>(await repo.publisher(for: id, setCurrent: id).failure())
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable) {}
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable) {}
         try await Task.sleep(for: .seconds(0.1))
         XCTAssertEqual(spy.publishedValues.compactMap { $0 as? TestError }, [TestError(category: .failure)])
     }
@@ -88,7 +116,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         delayedValues = DelayedValues<String>(values: [
             .makeValue(valueA1, delay: 0.1),
         ])
-        try await repo.prefetch(queryId: id, variables: id)
+        await repo.prefetch(queryId: id, variables: id)
         XCTAssertEqual(spy.publishedValues, [valueA1])
     }
 
@@ -97,7 +125,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         delayedValues = DelayedValues<String>(values: [])
         var willGetCount = 0
         let willGet = { willGetCount += 1 }
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
         XCTAssertEqual(willGetCount, 0)
     }
 
@@ -111,11 +139,11 @@ class DefaultQueryRepositoryTests: XCTestCase {
         ])
         var willGetCount = 0
         let willGet = { willGetCount += 1 }
-        try await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
         try await Task.sleep(for: .seconds(0.05))
-        try await repo.get(queryId: id, variables: variablesB, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: variablesB, errorIntent: .indispensable, willGet: willGet)
         try await Task.sleep(for: .seconds(0.05))
-        try await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
         try await Task.sleep(for: .seconds(0.05))
         XCTAssertEqual(willGetCount, 2)
         XCTAssertEqual(spy.publishedValues, [valueA1, valueB1, valueA1])
@@ -132,12 +160,12 @@ class DefaultQueryRepositoryTests: XCTestCase {
         ])
         var willGetCount = 0
         let willGet = { willGetCount += 1 }
-        try await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
         try await Task.sleep(for: .seconds(0.05))
-        try await repo.get(queryId: id, variables: variablesB, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: variablesB, errorIntent: .indispensable, willGet: willGet)
         // Wait long enough for stored values to be stale
         try await Task.sleep(for: .seconds(0.05))
-        try await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: variablesA, errorIntent: .indispensable, willGet: willGet)
         try await Task.sleep(for: .seconds(0.05))
         XCTAssertEqual(willGetCount, 3)
         XCTAssertEqual(spy.publishedValues, [valueA1, valueB1, valueA1, valueA2])
@@ -150,8 +178,8 @@ class DefaultQueryRepositoryTests: XCTestCase {
         ])
         var willGetCount = 0
         let willGet = { willGetCount += 1 }
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, queryStrategy: .never, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, queryStrategy: .never, willGet: willGet)
 
         XCTAssertEqual(willGetCount, 1)
     }
@@ -163,8 +191,8 @@ class DefaultQueryRepositoryTests: XCTestCase {
             .makeError(TestError(category: .failure), delay: 0.1),
         ])
         let spy = PublisherSpy(await repo.publisher(for: id, setCurrent: keyA))
-        try await repo.get(queryId: id, variables: id, errorIntent: .dispensable, willGet: {})
-        try await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: {})
+        await repo.get(queryId: id, variables: id, errorIntent: .dispensable, willGet: {})
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: {})
         try await arbitraryWait()
         XCTAssertTrue((spy.publishedValues.first?.failure as? any AppError)?.intent == .dispensable)
         XCTAssertTrue((spy.publishedValues.last?.failure as? any AppError)?.intent == .indispensable)
@@ -231,6 +259,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
     /// Makes a repository that stores a single value per unique query ID,
     /// and places ModelResponse values in a separate model store.
     private func makeModelResponseStoreRepository(
+        mergeStrategy: ModelStoreMergeStrategy = .upsertAppend,
         queryStrategy: QueryStrategy = .ifOlderThan(0.1),
         delayedValues: DelayedValues<TestModelResponse>
     ) -> DefaultQueryRepository<String, String, String, TestModelResponse.Value> {
@@ -238,6 +267,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         return DefaultQueryRepository<String, String, String, TestModelResponse.Value>(
             observableStore: DefaultObservableStore<String, String, TestModelResponse.Value>(store: DictionaryStore()),
             modelStore: modelStore,
+            mergeStrategy: mergeStrategy,
             query: DefaultQuery(queryOperation: { _ in
                 try await delayedValues.next()
             }),
