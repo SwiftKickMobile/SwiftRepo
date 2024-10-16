@@ -52,7 +52,163 @@ public protocol Query<QueryId, Variables, Value> {
     func latestVariables(for id: QueryId) async -> Variables?
 }
 
+public extension Query {
+    typealias WillGet = () async -> Void
+
+    @discardableResult
+    /// Conditionally perform the query if needed based on the specified strategy and the state of the store.
+    /// - Parameters:
+    ///   - id: The query ID
+    ///   - variables: The query variables
+    ///   - store: The observable store where query results are cached
+    ///   - unmappedKey: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
+    ///   - valueVariablesFactory: a closure that converts the value into its associated variables
+    ///   - keyFactory: a closure that converts the query ID and variables into a store key
+    ///   - errorIntent: The error intent to apply to errors that are thrown by the query
+    ///   - strategy: The query strategy
+    ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
+    /// - Returns: The value if the query was performed. Otherwise, `nil`.
+    func get<Store, Key>(
+        id: QueryId,
+        variables: Variables,
+        into store: Store,
+        keyedBy unmappedKey: Key,
+        valueVariablesFactory: ((QueryId, Variables, Value) -> Variables)?,
+        keyFactory: @escaping (QueryId, Variables) -> Key,
+        errorIntent: ErrorIntent,
+        strategy: QueryStrategy,
+        willGet: WillGet?
+    ) async throws -> Value?
+    where Store: ObservableStore, Store.Value == Value, Store.Key == Key, Store.PublishKey == QueryId {
+        try await commonGet(
+            id: id,
+            variables: variables,
+            into: store,
+            key: unmappedKey,
+            valueVariablesFactory: valueVariablesFactory,
+            keyFactory: keyFactory,
+            errorIntent: errorIntent,
+            strategy: strategy,
+            willGet: willGet,
+            storeSet: { storeKey, value in
+                // Here we explicitly pass the value as `Value`, since `Store.Value == Value`
+                try await store.set(key: storeKey, value: value)
+            },
+            modelStoreSet: nil
+        )
+    }
+
+    /// Publishes all values
+    var valuePublisher: AnyPublisher<Value, Never> {
+        publisher
+            .compactMap {
+                switch $0.result {
+                case let .success(value): return value
+                case .failure: return nil
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+}
+
+public extension Query {
+    
+    @discardableResult
+    /// Conditionally perform the query if needed based on the specified strategy and the state of the store.
+    /// This `get` function is to be used when `Value` is a `ModelResponse`. The `ModelResponse.Value`
+    /// will be placed in `store`, while the `ModelResponse.Model`s will be placed in the `modelStore`.
+    /// - Parameters:
+    ///   - id: The query ID
+    ///   - variables: The query variables
+    ///   - store: The observable store where query result values are cached
+    ///   - modelStore: The model store where query result models are cached
+    ///   - unmappedKey: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
+    ///   - valueVariablesFactory: a closure that converts the value into its associated variables
+    ///   - keyFactory: a closure that converts the query ID and variables into a store key
+    ///   - errorIntent: The error intent to apply to errors that are thrown by the query
+    ///   - strategy: The query strategy
+    ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
+    /// - Returns: The value if the query was performed. Otherwise, `nil`.
+    func get<Store, Key, ModelStore>(
+        id: QueryId,
+        variables: Variables,
+        into store: Store,
+        modelStore: ModelStore,
+        mergeStrategy: ModelStoreMergeStrategy,
+        keyedBy unmappedKey: Key,
+        valueVariablesFactory: ((QueryId, Variables, Value) -> Variables)?,
+        keyFactory: @escaping (QueryId, Variables) -> Key,
+        errorIntent: ErrorIntent,
+        strategy: QueryStrategy,
+        willGet: WillGet?
+    ) async throws -> Value?
+    where Value: ModelResponse,
+          Store: ObservableStore,
+          Store.Value == Value.Value,
+          Store.Key == Key,
+          Store.PublishKey == QueryId,
+          ModelStore: SwiftRepo.Store,
+          ModelStore.Value == Value.Model,
+          ModelStore.Key == Value.Model.Key
+    {
+        try await commonGet(
+            id: id,
+            variables: variables,
+            into: store,
+            key: unmappedKey,
+            valueVariablesFactory: valueVariablesFactory,
+            keyFactory: keyFactory,
+            errorIntent: errorIntent,
+            strategy: strategy,
+            willGet: willGet,
+            storeSet: { storeKey, value in
+                // For this version, we pass `value.value`, since `Store.Value == Value.Value`
+                try await store.set(key: storeKey, value: value.value)
+            },
+            modelStoreSet: { value in
+                for model in value.models {
+                    try await modelStore.set(key: model.id, value: model)
+                }
+                
+                switch mergeStrategy {
+                case .upsertAppend:
+                    // No additional action required
+                    break
+                case .upsertTrim:
+                    // Capture keys for models not in the new `Value.models` array,
+                    // and remove the associated model from the store.
+                    let trimModelKeys = try await modelStore.keys.filter { key in
+                        !value.models.contains(where: { $0.id == key })
+                    }
+                    for modelKey in trimModelKeys {
+                        try await modelStore.set(key: modelKey, value: nil)
+                    }
+                }
+            }
+        )
+    }
+}
+
 private extension Query {
+    func shouldGet(
+        strategy: QueryStrategy,
+        ageOfStore: TimeInterval?,
+        variablesChanged: Bool,
+        isPaging: Bool
+    ) async -> Bool {
+        guard !isPaging else { return true }
+        switch strategy {
+        case let .ifOlderThan(timeInterval):
+            return (ageOfStore ?? TimeInterval.greatestFiniteMagnitude >= timeInterval) ||
+                variablesChanged
+        case .ifNotStored:
+            return ageOfStore == nil || variablesChanged
+        case .always:
+            return true
+        case .never:
+            return false
+        }
+    }
     
     /// Common logic to conditionally perform the query if needed based on the specified strategy and state of the store.
     private func commonGet<Store, Key>(
@@ -124,147 +280,6 @@ private extension Query {
             // On error, apply the error intent
             error.intent = errorIntent
             throw error
-        }
-    }
-}
-
-public extension Query {
-    typealias WillGet = () async -> Void
-
-    @discardableResult
-    /// Conditionally perform the query if needed based on the specified strategy and the state of the store.
-    /// - Parameters:
-    ///   - id: The query ID
-    ///   - variables: The query variables
-    ///   - store: The observable store where query results are cached
-    ///   - unmappedKey: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
-    ///   - valueVariablesFactory: a closure that converts the value into its associated variables
-    ///   - keyFactory: a closure that converts the query ID and variables into a store key
-    ///   - errorIntent: The error intent to apply to errors that are thrown by the query
-    ///   - strategy: The query strategy
-    ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
-    /// - Returns: The value if the query was performed. Otherwise, `nil`.
-    func get<Store, Key>(
-        id: QueryId,
-        variables: Variables,
-        into store: Store,
-        keyedBy unmappedKey: Key,
-        valueVariablesFactory: ((QueryId, Variables, Value) -> Variables)?,
-        keyFactory: @escaping (QueryId, Variables) -> Key,
-        errorIntent: ErrorIntent,
-        strategy: QueryStrategy,
-        willGet: WillGet?
-    ) async throws -> Value?
-    where Store: ObservableStore, Store.Value == Value, Store.Key == Key, Store.PublishKey == QueryId {
-        try await commonGet(
-            id: id,
-            variables: variables,
-            into: store,
-            key: unmappedKey,
-            valueVariablesFactory: valueVariablesFactory,
-            keyFactory: keyFactory,
-            errorIntent: errorIntent,
-            strategy: strategy,
-            willGet: willGet,
-            storeSet: { storeKey, value in
-                // Here we explicitly pass the value as `Value`, since `Store.Value == Value`
-                try await store.set(key: storeKey, value: value)
-            },
-            modelStoreSet: nil
-        )
-    }
-
-    /// Publishes all values
-    var valuePublisher: AnyPublisher<Value, Never> {
-        publisher
-            .compactMap {
-                switch $0.result {
-                case let .success(value): return value
-                case .failure: return nil
-                }
-            }
-            .eraseToAnyPublisher()
-    }
-}
-
-public extension Query {
-    
-    @discardableResult
-    /// Conditionally perform the query if needed based on the specified strategy and the state of the store.
-    /// This `get` function is to be used when models derived from the response will be put in a separate `Store`.
-    /// - Parameters:
-    ///   - id: The query ID
-    ///   - variables: The query variables
-    ///   - store: The observable store where query results are cached
-    ///   - unmappedKey: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
-    ///   - valueVariablesFactory: a closure that converts the value into its associated variables
-    ///   - keyFactory: a closure that converts the query ID and variables into a store key
-    ///   - errorIntent: The error intent to apply to errors that are thrown by the query
-    ///   - strategy: The query strategy
-    ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
-    /// - Returns: The value if the query was performed. Otherwise, `nil`.
-    func get<Store, Key, ModelStore>(
-        id: QueryId,
-        variables: Variables,
-        into store: Store,
-        modelStore: ModelStore,
-        keyedBy unmappedKey: Key,
-        valueVariablesFactory: ((QueryId, Variables, Value) -> Variables)?,
-        keyFactory: @escaping (QueryId, Variables) -> Key,
-        errorIntent: ErrorIntent,
-        strategy: QueryStrategy,
-        willGet: WillGet?
-    ) async throws -> Value?
-    where Value: ModelResponse,
-          Store: ObservableStore,
-          Store.Value == Value.Value,
-          Store.Key == Key,
-          Store.PublishKey == QueryId,
-          ModelStore: SwiftRepo.Store,
-          ModelStore.Value == Value.Model,
-          ModelStore.Key == Value.Model.Key
-    {
-        try await commonGet(
-            id: id,
-            variables: variables,
-            into: store,
-            key: unmappedKey,
-            valueVariablesFactory: valueVariablesFactory,
-            keyFactory: keyFactory,
-            errorIntent: errorIntent,
-            strategy: strategy,
-            willGet: willGet,
-            storeSet: { storeKey, value in
-                // For this version, we pass `value.value`, since `Store.Value == Value.Value`
-                try await store.set(key: storeKey, value: value.value)
-            },
-            modelStoreSet: { value in
-                for model in value.models {
-                    try await modelStore.set(key: model.id, value: model)
-                }
-            }
-        )
-    }
-}
-
-extension Query {
-    private func shouldGet(
-        strategy: QueryStrategy,
-        ageOfStore: TimeInterval?,
-        variablesChanged: Bool,
-        isPaging: Bool
-    ) async -> Bool {
-        guard !isPaging else { return true }
-        switch strategy {
-        case let .ifOlderThan(timeInterval):
-            return (ageOfStore ?? TimeInterval.greatestFiniteMagnitude >= timeInterval) ||
-                variablesChanged
-        case .ifNotStored:
-            return ageOfStore == nil || variablesChanged
-        case .always:
-            return true
-        case .never:
-            return false
         }
     }
 }

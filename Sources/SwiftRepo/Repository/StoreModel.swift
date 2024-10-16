@@ -7,7 +7,9 @@
 
 import Foundation
 
-/// A model that can be placed and fetched in a store.
+/// A model that can be placed and fetched in a `Store`.
+/// This interface is to be used with models that will be retrieved by the app
+/// through database queries, rather than published by a `QueryRepository`
 public protocol StoreModel {
     /// The type to use as the identifier for the model
     associatedtype Key = any Hashable
@@ -19,6 +21,24 @@ public protocol StoreModel {
 }
 
 public extension StoreModel where Key == UUID {
+
+    static func predicate(key: Key) -> Predicate<Self> {
+        #Predicate<Self> { model in
+            model.id == key
+        }
+    }
+}
+
+public extension StoreModel where Key == String {
+
+    static func predicate(key: Key) -> Predicate<Self> {
+        #Predicate<Self> { model in
+            model.id == key
+        }
+    }
+}
+
+public extension StoreModel where Key == Int {
 
     static func predicate(key: Key) -> Predicate<Self> {
         #Predicate<Self> { model in

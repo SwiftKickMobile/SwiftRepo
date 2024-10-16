@@ -58,6 +58,34 @@ class DefaultQueryRepositoryTests: XCTestCase {
         XCTAssertEqual(try modelStore.get(key: Self.modelBId), responseB.models.first)
         XCTAssertEqual(try modelStore.get(key: Self.modelCId), responseB.models.last)
     }
+    
+    @MainActor
+    func test_GetSuccess_ModelResponse_Trim() async throws {
+        let repo = makeModelResponseStoreRepository(
+            mergeStrategy: .upsertTrim,
+            delayedValues: DelayedValues<TestModelResponse>(values: [
+                .makeValue(responseA),
+                .makeValue(responseB)
+            ])
+        )
+        let spy = PublisherSpy(repo.publisher(for: id, setCurrent: id).success())
+        var willGetCount = 0
+        let willGet = { willGetCount += 1 }
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        XCTAssertEqual(willGetCount, 1)
+        XCTAssertEqual(spy.publishedValues, [responseA.value])
+        XCTAssertEqual(try modelStore.get(key: Self.modelAId), responseA.models.first)
+        try await Task.sleep(for: .seconds(0.05))
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        XCTAssertEqual(willGetCount, 1)
+        try await Task.sleep(for: .seconds(0.1))
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: willGet)
+        XCTAssertEqual(willGetCount, 2)
+        XCTAssertEqual(spy.publishedValues, [responseA.value, responseA.value, responseA.value, responseB.value])
+        XCTAssertEqual(try modelStore.get(key: Self.modelAId), nil)
+        XCTAssertEqual(try modelStore.get(key: Self.modelBId), responseB.models.first)
+        XCTAssertEqual(try modelStore.get(key: Self.modelCId), responseB.models.last)
+    }
 
     func test_GetError() async throws {
         let repo = makeIDStoreRepository()
@@ -267,6 +295,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
     /// Makes a repository that stores a single value per unique query ID,
     /// and places ModelResponse values in a separate model store.
     private func makeModelResponseStoreRepository(
+        mergeStrategy: ModelStoreMergeStrategy = .upsertAppend,
         queryStrategy: QueryStrategy = .ifOlderThan(0.1),
         delayedValues: DelayedValues<TestModelResponse>
     ) -> DefaultQueryRepository<String, String, String, TestModelResponse.Value> {
@@ -274,6 +303,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         return DefaultQueryRepository<String, String, String, TestModelResponse.Value>(
             observableStore: DefaultObservableStore<String, String, TestModelResponse.Value>(store: DictionaryStore()),
             modelStore: modelStore,
+            mergeStrategy: mergeStrategy,
             query: DefaultQuery(queryOperation: { _ in
                 try await delayedValues.next()
             }),

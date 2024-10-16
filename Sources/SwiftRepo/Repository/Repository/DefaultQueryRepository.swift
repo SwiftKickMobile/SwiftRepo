@@ -8,6 +8,14 @@ import Foundation
 import Core
 
 /// The default `QueryRepository` implementation.
+///
+/// This type supports two approaches for caching and retrieving result models.
+///     1. `Classic`: Store fetched models in an `ObservableStore`.
+///         `Query` result models can be observed directly via the `QueryRepository` publisher.
+///     2. `Database`: Store fetched models in a `ModelStore` when `Value` is a `ModelResponse`.
+///         The `ModelResponse.Model` will be stored in the provided `ModelStore`, while
+///         the `ModelResponse.Value` updates are stored in an `ObservableStore` and
+///         can be observed via the `QueryRepository` publisher.
 public final class DefaultQueryRepository<QueryId, Variables, Key, Value>: QueryRepository
 where QueryId: Hashable, Variables: Hashable, Key: Hashable {
 
@@ -31,7 +39,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     /// happen and add key mappings to the observable store via `observableStore.addMapping(from:to:)`
     public typealias ValueVariablesFactory<FactoryValue> = (_ queryId: QueryId, _ variables: Variables, _ value: FactoryValue) -> Variables
 
-    /// Creates a query repository. There are simplified convenience initializers, so this one is typically not called directly.
+    /// Creates a `Classic` query repository. There are simplified convenience initializers, so this one is typically not called directly.
     public init(
         observableStore: ObservableStoreType,
         query: QueryType<Value>,
@@ -40,6 +48,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         keyFactory: @escaping KeyFactory
     ) {
         self.observableStore = observableStore
+        self.mergeStrategy = nil
         self.queryStrategy = queryStrategy
         self.keyFactory = keyFactory
         preGet = { queryId, variables in
@@ -63,17 +72,28 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         }
     }
     
-    /// Creates a query repository whose published values differ from those placed in the underlying store.
+    /// Creates a `Database` query repository whose published values differ from those placed in the underlying store.
+    /// This variant is intended to be used when persisting and fetching models in a database, rather than
+    /// through the repository directly.
+    ///
     /// There are simplified convenience initializers, so this one is typically not called directly.
+    ///
+    /// - Parameters:
+    ///   - observableStore: The underlying `ObservableStore` implementation to use for `QueryValue.Value`.
+    ///   - modelStore: The underlying `Store` implementation to use for `QueryValue.Model`.
+    ///   - queryStrategy: The query strategy to use.
+    ///   - queryOperation: The operation to use to perform the actual query.
     public init<Model, QueryValue>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
+        mergeStrategy: ModelStoreMergeStrategy,
         query: QueryType<QueryValue>,
         queryStrategy: QueryStrategy,
         valueVariablesFactory: ValueVariablesFactory<QueryValue>?,
         keyFactory: @escaping KeyFactory
     ) where Model: StoreModel, QueryValue: ModelResponse, Model == QueryValue.Model, Value == QueryValue.Value {
         self.observableStore = observableStore
+        self.mergeStrategy = nil
         self.queryStrategy = queryStrategy
         self.keyFactory = keyFactory
         preGet = { queryId, variables in
@@ -88,6 +108,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
                 variables: variables,
                 into: observableStore,
                 modelStore: modelStore,
+                mergeStrategy: mergeStrategy,
                 keyedBy: key,
                 valueVariablesFactory: valueVariablesFactory,
                 keyFactory: keyFactory,
@@ -98,7 +119,8 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         }
     }
 
-    /// Creates a query repository when the store key is equivalent to the query ID. Use this when caching only the most recently used variables for a given query ID.
+    /// Creates a `Classic` query repository when the store key is equivalent to the query ID.
+    /// Use this when caching only the most recently used variables for a given query ID.
     ///
     /// - Parameters:
     ///   - observableStore: The underlying `ObservableStore` implementation to use.
@@ -117,7 +139,8 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         ) { queryId, _ in queryId }
     }
     
-    /// Creates a query repository when the store key is equivalent to the query ID. Use this when caching only the most recently used variables for a given query ID.
+    /// Creates a `Database` query repository when the store key is equivalent to the query ID.
+    /// Use this when caching only the most recently used variables for a given query ID.
     ///
     /// - Parameters:
     ///   - observableStore: The underlying `ObservableStore` implementation to use.
@@ -127,19 +150,21 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     public convenience init<Model>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
+        mergeStrategy: ModelStoreMergeStrategy,
         queryStrategy: QueryStrategy,
         queryOperation: @escaping (Variables) async throws -> Value
     ) where Model: StoreModel, Value: ModelResponse, Model == Value.Model, Key == QueryId, Value == Value.Value {
         self.init(
             observableStore: observableStore,
             modelStore: modelStore,
+            mergeStrategy: mergeStrategy,
             query: DefaultQuery(queryOperation: queryOperation),
             queryStrategy: queryStrategy,
             valueVariablesFactory: nil
         ) { queryId, _ in queryId }
     }
 
-    /// Creates a query repository when the store key is `QueryStoreKey`. Use this for variable-based caching.
+    /// Creates a `Classic` query repository when the store key is `QueryStoreKey`. Use this for variable-based caching.
     ///
     /// - Parameters:
     ///   - observableStore: The underlying `ObservableStore` implementation to use.
@@ -158,7 +183,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         ) { queryId, variables in QueryStoreKey(queryId: queryId, variables: variables) }
     }
 
-    /// Creates a query repository when the store key is `QueryStoreKey` and the value conforms to `HasValueVariables`. Use this for variable-based caching
+    /// Creates a `Classic` query repository when the store key is `QueryStoreKey` and the value conforms to `HasValueVariables`. Use this for variable-based caching
     /// and values that contain information use to construct query variables, such as when the server decides default sort and filter options that get passed back to the client.
     ///
     /// - Parameters:
@@ -185,7 +210,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         }
     }
 
-    /// Creates a query repository with no associated query.
+    /// Creates a `Classic` query repository with no associated query.
     ///
     /// - Parameters:
     ///   - observableStore: The underlying `ObservableStore` implementation to use.
@@ -203,6 +228,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     // MARK: - Variables
 
     private let observableStore: ObservableStoreType
+    private let mergeStrategy: ModelStoreMergeStrategy!
     private let queryStrategy: QueryStrategy
     private let keyFactory: (_ queryId: QueryId, _ variables: Variables) -> Key
 
