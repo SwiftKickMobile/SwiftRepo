@@ -197,6 +197,30 @@ class DefaultQueryRepositoryTests: XCTestCase {
         XCTAssertTrue((spy.publishedValues.first?.failure as? any AppError)?.intent == .dispensable)
         XCTAssertTrue((spy.publishedValues.last?.failure as? any AppError)?.intent == .indispensable)
     }
+    
+    func test_valuesWithIdenticalKeysPublish() async throws {
+        let repo = makeStoreRepository(queryStrategy: .always)
+        delayedValues = DelayedValues<String>(values: [
+            .makeValue(valueA1, delay: 0.1),
+            .makeValue(valueA2, delay: 0.1),
+        ])
+        let loadingController = await LoadingController<String>()
+        
+        await repo.publisher(for: .unused, setCurrent: .unused)
+            .receive(subscriber: loadingController.resultSubscriber)
+        
+        let spy = PublisherSpy(await repo.publisher(for: .unused, setCurrent: .unused).success())
+        let loadingControllerSpy = await PublisherSpy(loadingController.state)
+        await repo.get(queryId: .unused, variables: .unused, errorIntent: .dispensable, willGet: {})
+        await repo.get(queryId: .unused, variables: .unused, errorIntent: .indispensable, willGet: {})
+        try await arbitraryWait()
+        XCTAssertEqual(spy.publishedValues, [valueA1, valueA1, valueA2])
+        XCTAssertEqual(
+            loadingControllerSpy.publishedValues,
+            [.loading(isHidden: false), .loaded(valueA1, nil, isUpdating: false),
+                .loaded(valueA1, nil, isUpdating: false), .loaded(valueA2, nil, isUpdating: false)]
+        )
+    }
 
     // MARK: - Constants
 
@@ -249,6 +273,18 @@ class DefaultQueryRepositoryTests: XCTestCase {
         queryStrategy: QueryStrategy = .ifOlderThan(0.1)
     ) -> DefaultQueryRepository<String, String, String, String> {
         let observableStore = DefaultObservableStore<String, String, String>(
+            store: DictionaryStore()
+        )
+        return DefaultQueryRepository(observableStore: observableStore, queryStrategy: queryStrategy) { _ in
+            try await self.delayedValues.next()
+        }
+    }
+    
+    /// Makes a repository that stores a single value per unique query ID.
+    private func makeStoreRepository(
+        queryStrategy: QueryStrategy = .ifOlderThan(0.1)
+    ) -> DefaultQueryRepository<Unused, Unused, Unused, String> {
+        let observableStore = DefaultObservableStore<Unused, Unused, String>(
             store: DictionaryStore()
         )
         return DefaultQueryRepository(observableStore: observableStore, queryStrategy: queryStrategy) { _ in

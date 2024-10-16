@@ -62,6 +62,7 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
 
     // MARK: - ConstantQueryRepository
 
+    @MainActor
     public func get(
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy?,

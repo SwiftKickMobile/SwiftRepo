@@ -248,6 +248,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
 
     // MARK: - QueryRepository
 
+    @MainActor
     public func get(
         queryId: QueryId,
         variables: Variables,

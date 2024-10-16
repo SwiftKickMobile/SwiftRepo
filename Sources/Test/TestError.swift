@@ -5,7 +5,6 @@
 //  Created by Timothy Moose on 9/22/23.
 //
 
-import Foundation
 import Core
 
 public struct TestError: AppError, Equatable {

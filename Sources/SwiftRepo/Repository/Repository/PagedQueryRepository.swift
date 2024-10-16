@@ -28,6 +28,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
 
     public typealias ValueVariablesFactory = (_ queryId: QueryId, _ variables: Variables, _ value: Value) -> Variables
 
+    @MainActor
     public func get(
         queryId: QueryId,
         variables: Variables,

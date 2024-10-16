@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftData
 
 /// A helper type that can be used with implementations of `Store` that provides the `ageOf` calculation.
 struct TimestampedValue<Value> {
