@@ -5,7 +5,8 @@
 //  Created by Timothy Moose on 9/22/23.
 //
 
-import Core
+import Foundation
+import SwiftRepoCore
 
 public struct TestError: AppError, Equatable {
     
@@ -15,7 +16,7 @@ public struct TestError: AppError, Equatable {
     
     public var isNotable: Bool = true
     
-    public var uiError: (any Core.UIError)?
+    public var uiError: (any SwiftRepoCore.UIError)?
     
     public var category: Category
     

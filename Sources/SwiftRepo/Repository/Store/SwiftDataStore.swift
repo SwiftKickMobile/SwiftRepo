@@ -8,7 +8,7 @@
 import Foundation
 import Combine
 import SwiftData
-import Core
+import SwiftRepoCore
 
 // An implementation of `Store` that uses `SwiftData` under the hood
 public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentModel, Model.Key: Hashable & Codable {

@@ -4,7 +4,7 @@
 
 import Swift
 import XCTest
-import Test
+import SwiftRepoTest
 @testable import SwiftRepo
 
 class IndefiniteControllerRandomTests: XCTestCase {

@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// A query repository implementation that supports paged service calls. The primary difference between `PagedQueryRepository` and
 /// `DefaultQueryRepository` is that `PagedQueryRepository` treats paged data sets as non-refreshable. That is, a paged data set

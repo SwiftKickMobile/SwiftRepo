@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// The default `ConstantQueryRepository` implementation.
 public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQueryRepository

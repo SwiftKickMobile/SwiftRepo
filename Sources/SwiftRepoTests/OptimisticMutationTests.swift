@@ -4,7 +4,7 @@
 //
 
 import XCTest
-import Test
+import SwiftRepoTest
 @testable import SwiftRepo
 
 @MainActor

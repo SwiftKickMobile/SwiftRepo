@@ -5,8 +5,8 @@
 
 import Combine
 import XCTest
-import Core
-import Test
+import SwiftRepoCore
+import SwiftRepoTest
 @testable import SwiftRepo
 
 // swiftlint:disable implicitly_unwrapped_optional force_unwrapping fatal_error_message

@@ -5,8 +5,8 @@
 
 import Combine
 import XCTest
-import Core
-import Test
+import SwiftRepoCore
+import SwiftRepoTest
 @testable import SwiftRepo
 
 class LoadingControllerTests: XCTestCase {

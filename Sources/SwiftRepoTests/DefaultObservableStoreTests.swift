@@ -4,8 +4,8 @@
 //
 
 import Combine
-import Core
-import Test
+import SwiftRepoCore
+import SwiftRepoTest
 import XCTest
 @testable import SwiftRepo
 

@@ -6,7 +6,7 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Core
+import SwiftRepoCore
 
 public extension LoadingController.State {
     
