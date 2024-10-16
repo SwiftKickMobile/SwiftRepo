@@ -37,8 +37,18 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
     ) async {
         // Evict stale data when getting the first page.
         if !variables.isPaging {
-            let key = keyFactory(queryId, variables)
-            await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+            do {
+                let key = keyFactory(queryId, variables)
+                try await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+            } catch {
+                // Any errors on prefetch can be propagated through the publisher.
+                let key = keyFactory(queryId, variables)
+                let result = StoreResult<Key, Value, Error>(key: key, failure: error)
+                _ = observableStore.subscriber
+                    .receive(result)
+                // Return early on error
+                return
+            }
         }
         // Ignore the `queryStrategy` parameter for now, forcing `.ifNotStored`. No other strategy makes sense with paging.
         await repository.get(
@@ -54,7 +64,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
     public func publisher(for queryId: QueryId, setCurrent key: Key) -> AnyPublisher<ValueResult, Never> {
         // Evict stale data before returning the publisher to ensure that stale data isn't displayed
         // before `get` is called.
-        observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+        try? observableStore.evict(for: key, ifOlderThan: ifOlderThan)
         return repository.publisher(for: queryId, setCurrent: key)
     }
 

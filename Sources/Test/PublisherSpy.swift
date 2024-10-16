@@ -4,9 +4,9 @@
 //
 
 import Combine
-//#if canImport(XCTest)
-//import XCTest
-//#endif
+#if canImport(XCTest)
+import XCTest
+#endif
 
 public class PublisherSpy<Value> {
     // MARK: - API
@@ -139,22 +139,22 @@ public class PublisherSpy<Value> {
     private var multiValueContinuation: CheckedContinuation<[Value], any Error>?
 }
 
-//#if canImport(XCTest)
-//public extension XCTestCase {
-//    func assertPublished<PublishedValue>(
-//        _ expected: [PublishedValue],
-//        spy: PublisherSpy<PublishedValue>,
-//        timeout: Double = 1.0
-//    ) where PublishedValue: Equatable {
-//        let expectation = XCTestExpectation(description: "assertPublished")
-//        spy.publishedValuesSubject
-//            .sink { values in
-//                if values == expected {
-//                    expectation.fulfill()
-//                }
-//            }
-//            .store(in: &spy.cancellables)
-//        wait(for: [expectation], timeout: timeout)
-//    }
-//}
-//#endif
+#if canImport(XCTest)
+public extension XCTestCase {
+    func assertPublished<PublishedValue>(
+        _ expected: [PublishedValue],
+        spy: PublisherSpy<PublishedValue>,
+        timeout: Double = 1.0
+    ) where PublishedValue: Equatable {
+        let expectation = XCTestExpectation(description: "assertPublished")
+        spy.publishedValuesSubject
+            .sink { values in
+                if values == expected {
+                    expectation.fulfill()
+                }
+            }
+            .store(in: &spy.cancellables)
+        wait(for: [expectation], timeout: timeout)
+    }
+}
+#endif
