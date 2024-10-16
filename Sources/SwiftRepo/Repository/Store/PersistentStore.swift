@@ -14,8 +14,8 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     public var keys: [Key] {
         get throws {
             try modelContext.fetch(FetchDescriptor<TimestampedValue>()).compactMap {
-                guard let key = try? decoder.decode(Key.self, from: $0.key) else {
-                    try? evict(for: $0.key)
+                guard let key = try? decoder.decode(Key.self, from: $0.id) else {
+                    try? evict(for: $0.id)
                     return nil
                 }
                 return key
@@ -41,7 +41,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     public func get(key: Key) throws -> Value? {
         let keyData = try encoder.encode(key)
         guard let valueData = try modelContext.fetch(
-            FetchDescriptor(predicate: TimestampedValue.predicate(forKeyData: keyData))
+            FetchDescriptor(predicate: TimestampedValue.predicate(key: keyData))
         ).first else { return nil }
         return try decoder.decode(Value.self, from: valueData.value)
     }
@@ -50,8 +50,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     @MainActor
     public func set(key: Key, value: Value?) throws -> Value? {
         if let value {
-            try modelContext.insert(TimestampedValue(key: key, value: value, encoder: encoder))
-            try modelContext.save()
+            try modelContext.insert(TimestampedValue(id: key, value: value, encoder: encoder))
         } else {
             let keyData = try encoder.encode(key)
             try evict(for: keyData)
@@ -62,7 +61,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     @MainActor
     public func age(of key: Key) throws -> TimeInterval? {
         let keyData = try encoder.encode(key)
-        let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValue.predicate(forKeyData: keyData)))
+        let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValue.predicate(key: keyData)))
         guard let result = result.first else { return nil }
         return Date.now.timeIntervalSince(result.timestamp)
     }
@@ -76,23 +75,19 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     // MARK: - Constants
     
     @Model
-    class TimestampedValue {
-        #Index<TimestampedValue>([\.key])
+    class TimestampedValue: StoreModel {
+        #Index<TimestampedValue>([\.id])
         
         @Attribute(.unique)
-        var key: Data
+        var id: Data
         var timestamp = Date()
         var value: Data
         
-        init(key: Key, value: Value, encoder: JSONEncoder) throws {
-            let key: Data = try encoder.encode(key)
+        init<ID: Codable>(id: ID, value: Value, encoder: JSONEncoder) throws {
+            let id: Data = try encoder.encode(id)
             let value: Data = try encoder.encode(value)
-            self.key = key
+            self.id = id
             self.value = value
-        }
-        
-        static func predicate(forKeyData keyData: Data) throws -> Predicate<TimestampedValue> {
-            return #Predicate { $0.key == keyData }
         }
     }
     
@@ -118,7 +113,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     @MainActor
     private func evict(for keyData: Data) throws {
-        try modelContext.delete(model: TimestampedValue.self, where: TimestampedValue.predicate(forKeyData: keyData))
+        try modelContext.delete(model: TimestampedValue.self, where: TimestampedValue.predicate(key: keyData))
         try modelContext.save()
     }
 }
