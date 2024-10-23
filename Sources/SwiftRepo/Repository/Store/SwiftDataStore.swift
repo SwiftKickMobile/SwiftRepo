@@ -48,7 +48,6 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
             try evict(for: key)
             modelContext.insert(value)
         }
-        try modelContext.save()
         // Update the timestamp store when values are updated
         try timestampStore.set(key: key, value: UUID())
         return value
@@ -67,29 +66,21 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     @MainActor
     public func clear() async throws {
         try modelContext.delete(model: Value.self)
-        try modelContext.save()
+        try await timestampStore.clear()
     }
     
     // MARK: - Constants
     
     // MARK: - Variables
     
-    @MainActor
-    private var _modelContext: ModelContext?
     private let modelContainer: ModelContainer
     private let merge: Merge?
     private let timestampStore: PersistentStore<Model.Key, UUID>
     
     @MainActor
-    private var modelContext: ModelContext {
-        if let _modelContext {
-            return _modelContext
-        } else {
-            let context = ModelContext(modelContainer)
-            _modelContext = context
-            return context
-        }
-    }
+    private lazy var modelContext: ModelContext = {
+        return ModelContext(modelContainer)
+    }()
     
     // MARK: - Helpers
     
@@ -97,7 +88,6 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     private func evict(for key: Key) throws {
         let predicate = Value.predicate(key: key)
         try modelContext.delete(model: Value.self, where: predicate)
-        try modelContext.save()
         // Clear the timestamp when the value is cleared
         try timestampStore.set(key: key, value: nil)
     }
