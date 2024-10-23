@@ -10,9 +10,6 @@ let package = Package(
     products: [
         .library(name: "SwiftRepo", targets: ["SwiftRepo"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/SwiftKickMobile/SwiftMessages.git", from: "10.0.1"),
-    ],
     targets: [
         .target(
             name: "SwiftRepo",

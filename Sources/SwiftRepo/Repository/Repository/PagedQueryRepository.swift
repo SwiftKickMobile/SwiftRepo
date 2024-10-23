@@ -40,7 +40,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
         if !variables.isPaging {
             do {
                 let key = keyFactory(queryId, variables)
-                try await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+                try observableStore.evict(for: key, ifOlderThan: ifOlderThan)
             } catch {
                 // Any errors on prefetch can be propagated through the publisher.
                 let key = keyFactory(queryId, variables)

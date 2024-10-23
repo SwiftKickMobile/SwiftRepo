@@ -13,19 +13,15 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
 
     // MARK: - API
 
-    public typealias Refresh = () async -> Void
-
     public init(
         state: LoadingController<DataType>.State,
-        shouldPresentAlert: Bool = true,
-        refresh: Refresh?,
+        refresh: Refreshable?,
         @ViewBuilder content: @escaping (DataType, Binding<UIErrorType?>) -> Content,
         @ViewBuilder loadingContent: @escaping () -> LoadingContent,
         @ViewBuilder errorContent: @escaping (UIErrorType) -> ErrorContent,
         @ViewBuilder emptyContent: @escaping () -> EmptyContent
     ) {
         self.state = state
-        self.shouldPresentAlert = shouldPresentAlert
         self.refresh = refresh
         self.content = content
         self.loadingContent = loadingContent
@@ -38,8 +34,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
     // MARK: - Variables
 
     private let state: LoadingController<DataType>.State
-    private let shouldPresentAlert: Bool
-    private let refresh: Refresh?
+    private let refresh: Refreshable?
     @ViewBuilder private let content: (DataType, Binding<UIErrorType?>) -> Content
     @ViewBuilder private let errorContent: (UIErrorType) -> ErrorContent
     @ViewBuilder private let emptyContent: () -> EmptyContent
@@ -66,7 +61,6 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
                 } else {
                     emptyContent()
                 }
-            default: EmptyView()
             }
         }
         // Make this view greedy so that it occupies the same space across all loading states.
@@ -74,8 +68,8 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
         // This keeps animations together if new animations are created while other animations are in progress.
         .geometryGroup()
         .animation(.default, value: state)
-        .refreshable {
-            await refresh?()
+        .refreshable { [weak refresh] in
+            await refresh?.refresh(retryError: nil)
         }
     }
 }
@@ -84,7 +78,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
     static var previews: some View {
         LoadingControllerView(
             state: .loaded("Loaded", nil, isUpdating: false),
-            refresh: {},
+            refresh: nil,
             content: { data, _ in
                 Text(data)
             },
@@ -94,7 +88,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
         )
         LoadingControllerView(
             state: .loading(isHidden: false),
-            refresh: {},
+            refresh: nil,
             content: { (data: String, _) in
                 Text(data)
             },
@@ -104,7 +98,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
         )
         LoadingControllerView(
             state: .empty(nil),
-            refresh: {},
+            refresh: nil,
             content: { (data: String, _) in
                 Text(data)
             },
@@ -114,7 +108,7 @@ struct LoadingControllerView_Previews: PreviewProvider {
         )
         LoadingControllerView(
             state: .empty(NSError(domain: "foo", code: URLError.Code.timedOut.rawValue, userInfo: nil)),
-            refresh: {},
+            refresh: nil,
             content: { (data: String, _) in
                 Text(data)
             },
