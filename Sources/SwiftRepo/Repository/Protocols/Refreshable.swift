@@ -5,6 +5,7 @@
 import SwiftRepoCore
 
 /// A protocol that clients of `LoadingControllerView` can use to enable retry functionality for error states and pull-to-refresh.
-public protocol Refreshable: AnyObject {
-    func refresh(retryError: (any UIError)?) async
+public protocol Refreshable<UIErrorType>: AnyObject {
+    associatedtype UIErrorType: UIError
+    func refresh(retryError: UIErrorType?) async
 }

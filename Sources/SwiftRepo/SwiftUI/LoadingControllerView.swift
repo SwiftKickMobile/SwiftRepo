@@ -15,7 +15,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
 
     public init(
         state: LoadingController<DataType>.State,
-        refresh: Refreshable?,
+        refresh: (any Refreshable<UIErrorType>)?,
         @ViewBuilder content: @escaping (DataType, Binding<UIErrorType?>) -> Content,
         @ViewBuilder loadingContent: @escaping () -> LoadingContent,
         @ViewBuilder errorContent: @escaping (UIErrorType) -> ErrorContent,
@@ -34,7 +34,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
     // MARK: - Variables
 
     private let state: LoadingController<DataType>.State
-    private let refresh: Refreshable?
+    private let refresh: (any Refreshable<UIErrorType>)?
     @ViewBuilder private let content: (DataType, Binding<UIErrorType?>) -> Content
     @ViewBuilder private let errorContent: (UIErrorType) -> ErrorContent
     @ViewBuilder private let emptyContent: () -> EmptyContent
