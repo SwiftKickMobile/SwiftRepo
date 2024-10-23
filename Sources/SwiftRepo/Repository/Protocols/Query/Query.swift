@@ -61,7 +61,7 @@ public extension Query {
     ///   - id: The query ID
     ///   - variables: The query variables
     ///   - store: The observable store where query results are cached
-    ///   - unmappedKey: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
+    ///   - keyedBy: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
     ///   - valueVariablesFactory: a closure that converts the value into its associated variables
     ///   - keyFactory: a closure that converts the query ID and variables into a store key
     ///   - errorIntent: The error intent to apply to errors that are thrown by the query
@@ -84,7 +84,7 @@ public extension Query {
             id: id,
             variables: variables,
             into: store,
-            key: unmappedKey,
+            keyedBy: unmappedKey,
             valueVariablesFactory: valueVariablesFactory,
             keyFactory: keyFactory,
             errorIntent: errorIntent,
@@ -155,7 +155,7 @@ public extension Query {
             id: id,
             variables: variables,
             into: store,
-            key: unmappedKey,
+            keyedBy: unmappedKey,
             valueVariablesFactory: valueVariablesFactory,
             keyFactory: keyFactory,
             errorIntent: errorIntent,
@@ -177,9 +177,9 @@ public extension Query {
                 case .upsertTrim:
                     // Capture keys for models not in the new `Value.models` array,
                     // and remove the associated model from the store.
-                    let trimModelKeys = try await modelStore.keys.filter { key in
-                        !value.models.contains(where: { $0.id == key })
-                    }
+                    let keepModelKeys = Set(value.models.map { $0.id })
+                    let allModelKeys = Set(try await modelStore.keys)
+                    let trimModelKeys = allModelKeys.subtracting(keepModelKeys)
                     for modelKey in trimModelKeys {
                         try await modelStore.set(key: modelKey, value: nil)
                     }
@@ -215,7 +215,7 @@ private extension Query {
         id: QueryId,
         variables: Variables,
         into store: Store,
-        key unmappedKey: Key,
+        keyedBy unmappedKey: Key,
         valueVariablesFactory: ((QueryId, Variables, Value) -> Variables)?,
         keyFactory: @escaping (QueryId, Variables) -> Key,
         errorIntent: ErrorIntent,
