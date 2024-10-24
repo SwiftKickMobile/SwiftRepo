@@ -79,7 +79,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     
     @MainActor
     private lazy var modelContext: ModelContext = {
-        return ModelContext(modelContainer)
+        return modelContainer.mainContext
     }()
     
     // MARK: - Helpers
