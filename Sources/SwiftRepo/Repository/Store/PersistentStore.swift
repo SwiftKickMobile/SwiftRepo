@@ -50,7 +50,9 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     @MainActor
     public func set(key: Key, value: Value?) throws -> Value? {
         if let value {
-            try modelContext.insert(TimestampedValue(id: key, value: value, encoder: encoder))
+            let key = try encoder.encode(key)
+            let value = try encoder.encode(value)
+            modelContext.insert(TimestampedValue(id: key, value: value))
         } else {
             let keyData = try encoder.encode(key)
             try evict(for: keyData)
@@ -83,9 +85,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
         var timestamp = Date()
         var value: Data
         
-        init<ID: Codable>(id: ID, value: Value, encoder: JSONEncoder) throws {
-            let id: Data = try encoder.encode(id)
-            let value: Data = try encoder.encode(value)
+        init(id: Data, value: Data) {
             self.id = id
             self.value = value
         }
