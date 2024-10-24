@@ -5,7 +5,7 @@
 
 import Foundation
 import Combine
-import Core
+import SwiftRepoCore
 
 /// A state machine for loading, loaded, error and empty states.
 public final actor LoadingController<DataType> where DataType: Emptyable {

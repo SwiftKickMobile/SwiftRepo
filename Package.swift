@@ -10,21 +10,35 @@ let package = Package(
     products: [
         .library(name: "SwiftRepo", targets: ["SwiftRepo"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/SwiftKickMobile/SwiftMessages.git", from: "10.0.1"),
-    ],
     targets: [
         .target(
             name: "SwiftRepo",
             dependencies: [
-                .target(name: "Core")
+                .target(name: "SwiftRepoCore")
             ],
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
         ),
         .target(
-            name: "Core",
+            name: "SwiftRepoCore",
+            swiftSettings: [
+                .unsafeFlags(["-enable-library-evolution"]),
+            ]
+        ),
+        .target(
+            name: "SwiftRepoTest",
+            swiftSettings: [
+                .unsafeFlags(["-enable-library-evolution"]),
+            ]
+        ),
+        .testTarget(
+            name: "SwiftRepoTests",
+            dependencies: [
+                .target(name: "SwiftRepoCore"),
+                .target(name: "SwiftRepoTest"),
+                .target(name: "SwiftRepo")
+            ],
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
             ]

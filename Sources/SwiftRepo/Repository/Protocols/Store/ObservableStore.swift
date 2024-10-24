@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// A sub-protocol of `Store` for in-memory and/or persistent caching of key/value pairs and publishing changes over time.
 ///
@@ -37,7 +37,7 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     func publisher(for publishKey: PublishKey) -> AnyPublisher<ValueResult, Never>
 
     /// Publishes results for all keys. Does not publish current values.
-    var publisher: AnyPublisher<ValueResult, Never> { get }
+    var publisher: AnyPublisher<StoreResultType, Never> { get }
 
     /// Publishes changes for the specified publish key. The store implementation is responsible for knowing how to map from key to publish key
     /// in order to route stored values to the revevant publishers.
@@ -71,7 +71,7 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     /// - Parameter publishKey: the publish key
     /// - Returns: all keys associated with the given publish key
     @MainActor
-    func keys(for publishKey: PublishKey) -> [Key]
+    func keys(for publishKey: PublishKey) throws -> [Key]
 
     /// Add an equivalence mapping from one key to another that helps the observable store internally maintain uniqueness of store keys. This is primarily used with queries
     /// that return variables in the response.
@@ -94,12 +94,12 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     /// - Parameters:
     ///   - key: the key to evict
     ///   - ifOlderThan: the threshold that designates a value as being old enough to evict
-    func evict(for key: Key, ifOlderThan: TimeInterval)
+    func evict(for key: Key, ifOlderThan: TimeInterval) throws
 
     /// Iterates over all keys in the store associated with the given publish key and applies the specified optional mutation. If the value of the current key is mutated,
     /// then the mutated value is puslished. This primarily exists for use with `QueryStoreKey` and optimistic mutation since there may be multiple stored values
     /// for any given query ID that need to be updated. If a particular value does not need to be mutated, the mutation may return `nil`.
-    func mutate(publishKey: PublishKey, mutation: (_ key: Key, _ value: Value) -> Value?) async
+    func mutate(publishKey: PublishKey, mutation: (_ key: Key, _ value: Value) -> Value?) async throws
 }
 
 /// Enumerates the types of changes that may be published by the store.
@@ -141,7 +141,9 @@ public extension ObservableStore {
         keyField: KeyPath<Value, Key>,
         store: some ObservableStore<Key, PublishKey, Value>
     ) where Value: HasMutatedAt, ValueResult: SuccessConvertible, ValueResult.Success == [Value] {
-        publisher.success()
+        publisher
+            .map(\.result)
+            .success()
             .flatMap(\.publisher)
             .receive(subscriber: store.newValueSubscriber(keyField: keyField))
     }
@@ -173,7 +175,9 @@ public extension ObservableStore {
         keyField: KeyPath<Value, Key>,
         store: some ObservableStore<Key, PublishKey, Value>
     ) where Value: HasMutatedAt, ValueResult: SuccessConvertible, ValueResult.Success == Success {
-        publisher.success()
+        publisher
+            .map(\.result)
+            .success()
             .map { $0[keyPath: fromField] }
             .flatMap(\.publisher)
             .receive(subscriber: store.newValueSubscriber(keyField: keyField))
@@ -181,9 +185,9 @@ public extension ObservableStore {
 
     /// Clears keys associated with a given publish key.
     /// - Parameter publishKey: the publish key to clear
-    func clear(publishKey: PublishKey) async {
-        for key in await keys(for: publishKey) {
-            await set(key: key, value: nil)
+    func clear(publishKey: PublishKey) async throws {
+        for key in try await keys(for: publishKey) {
+            try await set(key: key, value: nil)
         }
     }
 }
@@ -198,11 +202,11 @@ extension ObservableStore where Value: HasMutatedAt {
         } receiveValue: { value in
             Task {
                 let key = value[keyPath: keyField]
-                if let currentMutatedAt = await self.get(key: key)?.mutatedAt,
+                if let currentMutatedAt = try await self.get(key: key)?.mutatedAt,
                    value.mutatedAt <= currentMutatedAt {
                     return
                 }
-                await self.set(key: key, value: value)
+                try await self.set(key: key, value: value)
             }
             return .unlimited
         } receiveCompletion: { _ in

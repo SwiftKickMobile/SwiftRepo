@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// The default `VariableQueryRepository` implementation.
 public final class DefaultVariableQueryRepository<Variables, Value>: VariableQueryRepository
@@ -68,6 +68,7 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
 
     // MARK: - VariableQueryRepository
 
+    @MainActor
     public func get(
         variables: Variables,
         errorIntent: ErrorIntent,

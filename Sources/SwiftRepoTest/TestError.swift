@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import Core
+import SwiftRepoCore
 
 public struct TestError: AppError, Equatable {
     
@@ -16,13 +16,13 @@ public struct TestError: AppError, Equatable {
     
     public var isNotable: Bool = true
     
-    public var uiError: Core.UIError?
+    public var uiError: (any SwiftRepoCore.UIError)?
     
     public var category: Category
     
     public init(category: Category) {
         self.category = category
-        self.uiError = UIError(message: "Oops", title: "Bad", image: nil, isRetryable: true)
+        self.uiError = DefaultUIError(message: "Oops", isRetryable: true)
     }
     
     // MARK: - Constants
@@ -34,4 +34,8 @@ public struct TestError: AppError, Equatable {
     // MARK: - ErrorIntent
     
     public var intent: ErrorIntent = .dispensable
+    
+    public static func == (lhs: TestError, rhs: TestError) -> Bool {
+        lhs.category == rhs.category
+    }
 }

@@ -5,6 +5,8 @@
 
 import Combine
 import XCTest
+import SwiftRepoCore
+import SwiftRepoTest
 @testable import SwiftRepo
 
 // swiftlint:disable implicitly_unwrapped_optional force_unwrapping fatal_error_message
@@ -14,14 +16,14 @@ class LoadingControllerRandomTests: XCTestCase {
 
     // MARK: - Generating random tests
 
-//    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
-//    /// We must keep this commented out when checking in changes.
+    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
+    /// We must keep this commented out when checking in changes.
 //    func test_randomizer() async throws {
 //        try await performRandom(raceConditions: false)
 //    }
 //
-//    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
-//    /// We must keep this commented out when checking in changes.
+    /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
+    /// We must keep this commented out when checking in changes.
 //    func test_randomizerWithRaceConditions() async throws {
 //        try await performRandom(raceConditions: true)
 //    }
@@ -195,7 +197,7 @@ class LoadingControllerRandomTests: XCTestCase {
     }
 }
 
-extension LoadingController.LoadingBehavior: CustomStringConvertible {
+extension LoadingController.LoadingBehavior: @retroactive CustomStringConvertible {
     public var description: String {
         "delay=\(delay), minDuration=\(minimumDuration), loadedErrorsToEmpty=\(loadedErrorsToEmpty)"
     }

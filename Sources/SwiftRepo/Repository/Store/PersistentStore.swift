@@ -1,193 +1,119 @@
 //
-//  Created by Timothy Moose on 2/10/24.
+//  PersistentStore.swift
+//  SwiftRepo
+//
+//  Created by Carter Foughty on 10/2/24.
 //
 
-import OSLog
 import Foundation
+import SwiftData
 
-// TODO there are a lot of things in here that should be done async and should throw but we need to modify the `Store` API
-// and there are probably massive ripple effects. For now, we use the `PersistentValue` type to defer async loading.
-// and any filed save operations will not be handled properly.
-
-/// A persistent store implementation that supports an optional 2nd-level storage for in-memory caching.
-public final actor PersistentStore<Wrapped>: Store {
-
-    // MARK: - API
-
-    /// The key is required to be a string so we can easily use it as the filename. Otherwise, we need to add a mapping from
-    /// filename to `Key` for the `keys` API.
-    public typealias Key = String
-
-    /// A closure that knows how to load a file URL of type `Wrapped`.
-    public typealias Load = (URL) async throws -> Wrapped
-
-    /// A closure that knows how to save type `Wrapped` to a file URL.
-    public typealias Save = (Wrapped, URL) async throws -> Void
-
-    /// A second level of storage intended for in-memory faster retrieval. Typically this would be an `NSCacheStore`.
-    public typealias SecondLevelStore = any Store<Key, Wrapped>
-
-    public enum Location {
-        case documents(subpath: [String])
-        case cache(subpath: [String])
-
-        var directoryURL: URL {
-            var url: URL
-            switch self {
-            case .documents: url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            case .cache: url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-            }
-            for component in subpath {
-                url = url.appendingPathComponent(component)
-            }
-            return url
-        }
-
-        var subpath: [String] {
-            switch self {
-            case .cache(let subpath): subpath
-            case .documents(let subpath): subpath
-            }
-        }
-    }
-
-    // Create a `Data` store
-    public init(location: Location, secondLevelStore: SecondLevelStore? = nil) where Wrapped == Data {
-        print("PersistentStore location=\(location.directoryURL)")
-        self.init(
-            load: { url in
-                try Data(contentsOf: url)
-            },
-            save: { data, url in
-                try data.write(to: url)
-            },
-            location: location,
-            secondLevelStore: secondLevelStore
-        )
-    }
-
-    // Create a store.
-    public init(
-        load: @escaping Load,
-        save: @escaping Save,
-        location: Location,
-        secondLevelStore: SecondLevelStore? = nil
-    ) {
-        self.load = load
-        self.save = save
-        self.location = location
-        self.secondLevelStore = secondLevelStore
-        do {
-            try FileManager.default.createDirectory(at: location.directoryURL, withIntermediateDirectories: true)
-        } catch {
-            self.logger.error("\(error)")
-        }
-    }
-
-    // MARK: - Constants
-
-    // MARK: - Variables
-
-    private let load: Load
-    private let save: Save
-    private let location: Location
-    private let secondLevelStore: (any Store<Key, Wrapped>)?
-    private let logger = Logger(subsystem: "SwiftRepo", category: "PersistentStore")
-
-    // MARK: - Store
-
-    public typealias Value = PersistentValue<Wrapped>
-
-    @MainActor
-    public func set(key: Key, value: Value?) -> Value? {
-        switch value {
-        case let value?:
-            guard let wrapped = value.wrapped else { return nil }
-            secondLevelStore?.set(key: key, value: wrapped)
-            try? save(wrapped: wrapped, url: url(for: key))
-            return value
-        case .none:
-            secondLevelStore?.set(key: key, value: nil)
-            let url = url(for: key)
-            try? FileManager.default.removeItem(atPath: url.path)
-            return nil
-        }
-    }
-
-    @MainActor
-    public func get(key: Key) -> Value? {
-        if let wrapped = secondLevelStore?.get(key: key) { return PersistentValue(initial: .wrapped(wrapped)) }
-        let url = url(for: key)
-        switch FileManager.default.fileExists(atPath: url.path) {
-        case true: return load(url: url)
-        case false: return nil
-        }
-    }
-
-    @MainActor
-    public func age(of key: Key) -> TimeInterval? {
-        do {
-            let url = url(for: key)
-            let attr = try FileManager.default.attributesOfItem(atPath: url.path)
-            guard let date = attr[FileAttributeKey.modificationDate] as? Date else { return nil }
-            return Date().timeIntervalSince(date)
-        } catch {
-            return nil
-        }
-    }
-
-    public func clear() async {
-        await secondLevelStore?.clear()
-        try? FileManager.default.removeItem(atPath: location.directoryURL.path)
-        fatalError("TODO delete the directory")
-    }
-
-    @MainActor
+/// A persistent `Store` implementation implementation using `SwiftData`.
+public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
+    
     public var keys: [Key] {
-        (try? FileManager.default.contentsOfDirectory(atPath: location.directoryURL.path)) ?? []
-    }
-
-    // MARK: - File management
-
-    @MainActor
-    private func url(for key: Key) -> URL {
-        let url = location.directoryURL
-        return url.appendingPathComponent(key)
-    }
-
-    @MainActor
-    private func load(url: URL) -> Value {
-        PersistentValue(initial: .load {
-            do {
-                return try await withUnsafeThrowingContinuation { continuation in
-                    Task.detached(priority: .medium) {
-                        let value = try await self.load(url)
-                        continuation.resume(returning: value)
-                    }
+        get throws {
+            try modelContext.fetch(FetchDescriptor<TimestampedValue>()).compactMap {
+                guard let key = try? decoder.decode(Key.self, from: $0.id) else {
+                    try? evict(for: $0.id)
+                    return nil
                 }
-            } catch {
-                self.logger.error("\(error)")
-                throw error
-            }
-        })
-    }
-
-    @MainActor
-    private func save(wrapped: Wrapped, url: URL) {
-        Task.detached(priority: .medium) {
-            do {
-                try await self.save(wrapped, url)
-            } catch {
-                self.logger.error("\(error)")
-                throw error
+                return key
             }
         }
     }
-}
-
-@globalActor
-struct MediaActor {
-  actor ActorType { }
-
-  static let shared: ActorType = ActorType()
+    
+    public init(
+        id: String,
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder()
+    ) {
+        let storeName: String = "PersistentStore-\(id)"
+        self.modelContainer = try! ModelContainer(
+            for: TimestampedValue.self,
+            configurations: .init(storeName)
+        )
+        self.encoder = encoder
+        self.decoder = decoder
+    }
+    
+    @MainActor
+    public func get(key: Key) throws -> Value? {
+        let keyData = try encoder.encode(key)
+        guard let valueData = try modelContext.fetch(
+            FetchDescriptor(predicate: TimestampedValue.predicate(key: keyData))
+        ).first else { return nil }
+        return try decoder.decode(Value.self, from: valueData.value)
+    }
+    
+    @discardableResult
+    @MainActor
+    public func set(key: Key, value: Value?) throws -> Value? {
+        if let value {
+            try modelContext.insert(TimestampedValue(id: key, value: value, encoder: encoder))
+        } else {
+            let keyData = try encoder.encode(key)
+            try evict(for: keyData)
+        }
+        return value
+    }
+    
+    @MainActor
+    public func age(of key: Key) throws -> TimeInterval? {
+        let keyData = try encoder.encode(key)
+        let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValue.predicate(key: keyData)))
+        guard let result = result.first else { return nil }
+        return Date.now.timeIntervalSince(result.timestamp)
+    }
+    
+    @MainActor
+    public func clear() async throws {
+        try modelContext.delete(model: TimestampedValue.self)
+        try modelContext.save()
+    }
+    
+    // MARK: - Constants
+    
+    @Model
+    class TimestampedValue: StoreModel {
+        #Index<TimestampedValue>([\.id])
+        
+        @Attribute(.unique)
+        var id: Data
+        var timestamp = Date()
+        var value: Data
+        
+        init<ID: Codable>(id: ID, value: Value, encoder: JSONEncoder) throws {
+            let id: Data = try encoder.encode(id)
+            let value: Data = try encoder.encode(value)
+            self.id = id
+            self.value = value
+        }
+    }
+    
+    // MARK: - Variables
+    
+    private let modelContainer: ModelContainer
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+    private var _modelContext: ModelContext?
+    
+    @MainActor
+    private var modelContext: ModelContext {
+        if let _modelContext {
+            return _modelContext
+        } else {
+            let context = ModelContext(modelContainer)
+            _modelContext = context
+            return context
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    @MainActor
+    private func evict(for keyData: Data) throws {
+        try modelContext.delete(model: TimestampedValue.self, where: TimestampedValue.predicate(key: keyData))
+        try modelContext.save()
+    }
 }

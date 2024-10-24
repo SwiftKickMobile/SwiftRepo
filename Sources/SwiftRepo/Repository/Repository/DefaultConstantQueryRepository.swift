@@ -5,7 +5,7 @@
 
 import Combine
 import Foundation
-import Core
+import SwiftRepoCore
 
 /// The default `ConstantQueryRepository` implementation.
 public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQueryRepository
@@ -62,6 +62,7 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
 
     // MARK: - ConstantQueryRepository
 
+    @MainActor
     public func get(
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy?,

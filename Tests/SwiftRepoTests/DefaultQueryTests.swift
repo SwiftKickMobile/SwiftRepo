@@ -5,6 +5,8 @@
 
 import Combine
 import XCTest
+import SwiftRepoCore
+import SwiftRepoTest
 @testable import SwiftRepo
 
 class DefaultQueryTests: XCTestCase {
@@ -24,9 +26,8 @@ class DefaultQueryTests: XCTestCase {
             XCTAssertEqual(value, variable)
         }
         let success = TestErrorResultType(queryId: variable, variables: variable, success: variable)
-        fatalError()
-//        assertPublished([success], spy: allSpy)
-//        assertPublished([success], spy: spy)
+        assertPublished([success], spy: allSpy)
+        assertPublished([success], spy: spy)
     }
 
     func testMultiUniqueScopeQuery() async throws {
@@ -56,10 +57,9 @@ class DefaultQueryTests: XCTestCase {
         try await query.get(id: variable1, variables: variable1)
         let success1 = TestErrorResultType(queryId: variable1, variables: variable1, success: variable1)
         let success2 = TestErrorResultType(queryId: variable2, variables: variable2, success: variable2)
-        fatalError()
-//        assertPublished([success1, success2, success1], spy: allSpy)
-//        assertPublished([success1, success1], spy: spy1)
-//        assertPublished([success2], spy: spy2)
+        assertPublished([success1, success2, success1], spy: allSpy)
+        assertPublished([success1, success1], spy: spy1)
+        assertPublished([success2], spy: spy2)
     }
 
     func testErrorUniqueScopeQuery() async throws {
@@ -82,8 +82,7 @@ class DefaultQueryTests: XCTestCase {
         XCTAssertEqual(expectedError, TestError(category: .failure))
         let success1 = TestErrorResultType(queryId: variable1, variables: variable1, success: variable1)
         let failure2 = TestErrorResultType(queryId: variable2, variables: variable2, failure: TestError(category: .failure))
-        fatalError()
-//        assertPublished([success1, failure2], spy: spy)
+        assertPublished([success1, failure2], spy: spy)
     }
 
     // MARK: - Shared scope query
@@ -129,10 +128,9 @@ class DefaultQueryTests: XCTestCase {
         let success12 = CancelResultType(queryId: variable1, variables: variable2, success: variable2)
         let success11 = CancelResultType(queryId: variable1, variables: variable1, success: variable1)
         let success2 = CancelResultType(queryId: variable2, variables: variable2, success: variable2)
-        fatalError()
-//        assertPublished([success12, success2, success11], spy: allSpy)
-//        assertPublished([success12, success11], spy: spy1)
-//        assertPublished([success2], spy: spy2)
+        assertPublished([success12, success2, success11], spy: allSpy)
+        assertPublished([success12, success11], spy: spy1)
+        assertPublished([success2], spy: spy2)
     }
 
     private typealias TestErrorResultType = QueryResult<String, String, String, TestError>
