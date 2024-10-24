@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @Model
-class TimestampedValue: StoreModel {
+class TimestampedValueModel: StoreModel {
 //        #Index<TimestampedValue>([\.id])
     
 //        @Attribute(.unique)
@@ -28,7 +28,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     public var keys: [Key] {
         get throws {
-            try modelContext.fetch(FetchDescriptor<TimestampedValue>()).compactMap {
+            try modelContext.fetch(FetchDescriptor<TimestampedValueModel>()).compactMap {
                 guard let key = try? decoder.decode(Key.self, from: $0.id) else {
                     try? evict(for: $0.id)
                     return nil
@@ -45,7 +45,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     ) {
         let storeName: String = "PersistentStore-\(id)"
         self.modelContainer = try! ModelContainer(
-            for: TimestampedValue.self,
+            for: TimestampedValueModel.self,
             configurations: .init(storeName)
         )
         self.encoder = encoder
@@ -56,7 +56,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     public func get(key: Key) throws -> Value? {
         let keyData = try encoder.encode(key)
         guard let valueData = try modelContext.fetch(
-            FetchDescriptor(predicate: TimestampedValue.predicate(key: keyData))
+            FetchDescriptor(predicate: TimestampedValueModel.predicate(key: keyData))
         ).first else { return nil }
         return try decoder.decode(Value.self, from: valueData.value)
     }
@@ -67,7 +67,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
         if let value {
             let key = try encoder.encode(key)
             let value = try encoder.encode(value)
-            modelContext.insert(TimestampedValue(id: key, value: value))
+            modelContext.insert(TimestampedValueModel(id: key, value: value))
         } else {
             let keyData = try encoder.encode(key)
             try evict(for: keyData)
@@ -78,14 +78,14 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     @MainActor
     public func age(of key: Key) throws -> TimeInterval? {
         let keyData = try encoder.encode(key)
-        let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValue.predicate(key: keyData)))
+        let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValueModel.predicate(key: keyData)))
         guard let result = result.first else { return nil }
         return Date.now.timeIntervalSince(result.timestamp)
     }
     
     @MainActor
     public func clear() async throws {
-        try modelContext.delete(model: TimestampedValue.self)
+        try modelContext.delete(model: TimestampedValueModel.self)
         try modelContext.save()
     }
     
@@ -113,7 +113,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     @MainActor
     private func evict(for keyData: Data) throws {
-        try modelContext.delete(model: TimestampedValue.self, where: TimestampedValue.predicate(key: keyData))
+        try modelContext.delete(model: TimestampedValueModel.self, where: TimestampedValueModel.predicate(key: keyData))
         try modelContext.save()
     }
 }
