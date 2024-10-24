@@ -80,7 +80,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     class TimestampedValue: StoreModel {
         #Index<TimestampedValue>([\.id])
         
-        @Attribute(.unique)
+//        @Attribute(.unique)
         var id: Data
         var timestamp = Date()
         var value: Data
