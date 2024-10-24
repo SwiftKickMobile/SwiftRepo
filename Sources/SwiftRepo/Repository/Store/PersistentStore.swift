@@ -8,6 +8,21 @@
 import Foundation
 import SwiftData
 
+@Model
+class TimestampedValue: StoreModel {
+//        #Index<TimestampedValue>([\.id])
+    
+//        @Attribute(.unique)
+    var id: Data
+    var timestamp = Date()
+    var value: Data
+    
+    init(id: Data, value: Data) {
+        self.id = id
+        self.value = value
+    }
+}
+
 /// A persistent `Store` implementation implementation using `SwiftData`.
 public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
@@ -75,21 +90,6 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     }
     
     // MARK: - Constants
-    
-    @Model
-    class TimestampedValue: StoreModel {
-//        #Index<TimestampedValue>([\.id])
-        
-//        @Attribute(.unique)
-        var id: Data
-        var timestamp = Date()
-        var value: Data
-        
-        init(id: Data, value: Data) {
-            self.id = id
-            self.value = value
-        }
-    }
     
     // MARK: - Variables
     
