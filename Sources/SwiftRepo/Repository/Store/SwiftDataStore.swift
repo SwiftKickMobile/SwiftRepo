@@ -11,6 +11,7 @@ import SwiftData
 import SwiftRepoCore
 
 // An implementation of `Store` that uses `SwiftData` under the hood
+@available(iOS 18, *)
 public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentModel, Model.Key: Hashable & Codable {
     public typealias Key = Model.Key
     public typealias Value = Model

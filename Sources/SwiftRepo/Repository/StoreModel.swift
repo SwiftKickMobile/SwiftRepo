@@ -11,6 +11,7 @@ import Foundation
 /// This interface is to be used with models that will be retrieved by the app
 /// through database queries, rather than published by a `QueryRepository`,
 /// such as when using SwiftData.
+@available(iOS 17, *)
 public protocol StoreModel {
     /// The type to use as the identifier for the model
     associatedtype Key = any Hashable
@@ -21,7 +22,7 @@ public protocol StoreModel {
     /// A predicate that can be used to query for the `StoreModel`
     static func predicate(key: Key) -> Predicate<Self>
 }
-
+@available(iOS 17, *)
 public extension StoreModel where Key == Data {
 
     static func predicate(key: Key) -> Predicate<Self> {
@@ -30,7 +31,7 @@ public extension StoreModel where Key == Data {
         }
     }
 }
-
+@available(iOS 17, *)
 public extension StoreModel where Key == UUID {
 
     static func predicate(key: Key) -> Predicate<Self> {
@@ -39,7 +40,7 @@ public extension StoreModel where Key == UUID {
         }
     }
 }
-
+@available(iOS 17, *)
 public extension StoreModel where Key == String {
 
     static func predicate(key: Key) -> Predicate<Self> {
@@ -48,7 +49,7 @@ public extension StoreModel where Key == String {
         }
     }
 }
-
+@available(iOS 17, *)
 public extension StoreModel where Key == Int {
 
     static func predicate(key: Key) -> Predicate<Self> {

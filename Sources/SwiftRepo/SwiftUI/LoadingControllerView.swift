@@ -45,7 +45,8 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
 
     public var body: some View {
         loadingControllerView
-            .onChange(of: state) { loadedErrorData = state.loadedIndispensableUIError as? UIErrorType }
+            .onChange(of: state) { _ in
+                loadedErrorData = state.loadedIndispensableUIError as? UIErrorType }
     }
 
     private var loadingControllerView: some View {
@@ -65,8 +66,14 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
         }
         // Make this view greedy so that it occupies the same space across all loading states.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // This keeps animations together if new animations are created while other animations are in progress.
-        .geometryGroup()
+        .viewAsArgument { view in
+            if #available(iOS 17, *) {
+                // This keeps animations together if new animations are created while other animations are in progress.
+                view.geometryGroup()
+            } else {
+                view
+            }
+        }
         .animation(.default, value: state)
         .refreshable { [weak refresh] in
             await refresh?.refresh(retryError: nil)

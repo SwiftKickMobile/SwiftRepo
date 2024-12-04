@@ -84,6 +84,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ///   - modelStore: The underlying `Store` implementation to use for `QueryValue.Model`.
     ///   - queryStrategy: The query strategy to use.
     ///   - queryOperation: The operation to use to perform the actual query.
+    @available(iOS 17, *)
     public init<Model, QueryValue>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
@@ -148,6 +149,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ///   - modelStore: The underlying `Store` implementation to use for models.
     ///   - queryStrategy: The query strategy to use.
     ///   - queryOperation: The operation to use to perform the actual query.
+    @available(iOS 17, *)
     public convenience init<Model>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,

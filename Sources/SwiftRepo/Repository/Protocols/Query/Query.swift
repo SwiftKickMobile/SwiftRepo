@@ -129,6 +129,7 @@ public extension Query {
     ///   - strategy: The query strategy
     ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
     /// - Returns: The value if the query was performed. Otherwise, `nil`.
+    @available(iOS 17, *)
     func get<Store, Key, ModelStore>(
         id: QueryId,
         variables: Variables,
