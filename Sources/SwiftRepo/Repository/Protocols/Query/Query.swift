@@ -185,6 +185,12 @@ public extension Query {
                         try modelStore.set(key: modelKey, value: nil)
                     }
                 }
+                
+                // After setting all the models in the store, call save
+                // on the store if it conforms to `Saveable`.
+                if let modelStore = modelStore as? Saveable {
+                    try await modelStore.save()
+                }
             }
         )
     }

@@ -11,7 +11,7 @@ import SwiftData
 import SwiftRepoCore
 
 // An implementation of `Store` that uses `SwiftData` under the hood
-public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentModel, Model.Key: Hashable & Codable {
+public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: PersistentModel, Model.Key: Hashable & Codable {
     public typealias Key = Model.Key
     public typealias Value = Model
     /// A closure that defines how existing values are merged into new values.
@@ -55,7 +55,6 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
             try evict(for: key)
             modelContext.insert(value)
         }
-        try modelContext.save()
         // Update the timestamp store when values are updated
         try timestampStore.set(key: key, value: UUID())
         return value
@@ -74,8 +73,12 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     @MainActor
     public func clear() async throws {
         try modelContext.delete(model: Value.self)
-        try modelContext.save()
         try await timestampStore.clear()
+    }
+    
+    @MainActor
+    public func save() throws {
+        try modelContext.save()
     }
     
     // MARK: - Constants
@@ -97,7 +100,6 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     private func evict(for key: Key) throws {
         let predicate = Value.predicate(key: key)
         try modelContext.delete(model: Value.self, where: predicate)
-        try modelContext.save()
         // Clear the timestamp when the value is cleared
         try timestampStore.set(key: key, value: nil)
     }
