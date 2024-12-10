@@ -66,7 +66,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
         }
         // Make this view greedy so that it occupies the same space across all loading states.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .viewAsArgument { view in
+        .map { view in
             if #available(iOS 17, *) {
                 // This keeps animations together if new animations are created while other animations are in progress.
                 view.geometryGroup()

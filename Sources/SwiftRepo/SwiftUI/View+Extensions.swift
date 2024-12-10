@@ -8,7 +8,8 @@
 import SwiftUI
 
 extension View {
-    func viewAsArgument(@ViewBuilder modifier:(Self) -> some View) -> some View {
-        modifier(self)
+    /// Provides a way to introduce a code block as a view modifier.
+    @ViewBuilder func map<Content: View>(@ViewBuilder _ transform: (Self) -> Content) -> some View {
+        transform(self)
     }
 }
