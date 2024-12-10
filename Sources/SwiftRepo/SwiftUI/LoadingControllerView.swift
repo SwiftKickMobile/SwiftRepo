@@ -71,7 +71,7 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
                 // This keeps animations together if new animations are created while other animations are in progress.
                 view.geometryGroup()
             } else {
-                view
+                view.transformEffect(.identity)
             }
         }
         .animation(.default, value: state)
