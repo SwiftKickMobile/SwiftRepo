@@ -89,6 +89,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         XCTAssertEqual(try modelStore.get(key: Self.modelCId), responseB.models.last)
     }
     
+    @available(iOS 17, *)
     @MainActor
     func test_GetSuccess_ModelResponse_Merge() async throws {
         let repo = makeModelResponseStoreRepository(
