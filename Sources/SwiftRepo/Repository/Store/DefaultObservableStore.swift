@@ -269,7 +269,6 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
         // in order to clear the error.
         do {
             let value = try store.get(key: key)
-            print("XXXX CACHE \(value == nil ? "MISS" : "HIT") key=\(key)")
             // There are no new values being stored, so there is no need to write to store.
             try actorSet(key: key, value: value, isSettingCurrentKey: true)
         } catch {

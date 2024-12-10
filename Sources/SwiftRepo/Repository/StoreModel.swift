@@ -22,6 +22,7 @@ public protocol StoreModel {
     /// A predicate that can be used to query for the `StoreModel`
     static func predicate(key: Key) -> Predicate<Self>
 }
+
 @available(iOS 17, *)
 public extension StoreModel where Key == Data {
 
@@ -31,6 +32,7 @@ public extension StoreModel where Key == Data {
         }
     }
 }
+
 @available(iOS 17, *)
 public extension StoreModel where Key == UUID {
 
@@ -40,6 +42,7 @@ public extension StoreModel where Key == UUID {
         }
     }
 }
+
 @available(iOS 17, *)
 public extension StoreModel where Key == String {
 
@@ -49,6 +52,7 @@ public extension StoreModel where Key == String {
         }
     }
 }
+
 @available(iOS 17, *)
 public extension StoreModel where Key == Int {
 

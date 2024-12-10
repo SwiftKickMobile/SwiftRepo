@@ -12,11 +12,11 @@ import SwiftRepoCore
 
 // An implementation of `Store` that uses `SwiftData` under the hood
 @available(iOS 18, *)
-public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentModel, Model.Key: Hashable & Codable {
+public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: PersistentModel, Model.Key: Hashable & Codable {
     public typealias Key = Model.Key
     public typealias Value = Model
-    /// A closure that defines how new values are merged into existing values.
-    public typealias Merge = (_ new: Value, _ into: Value) -> Void
+    /// A closure that defines how existing values are merged into new values.
+    public typealias Merge = (_ existing: Value, _ into: Value) -> Void
     
     @MainActor
     public var keys: [Key] {
@@ -42,9 +42,16 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
         }
         
         if let existingValue = try get(key: key), let merge {
-            // If the store contains an existing value for this key,
-            // merge the two as necessary and save the resulting value.
-            merge(value, existingValue)
+            // If the value already has a store id associated with it, don't
+            // insert it in the context. This technique is based on a discovery
+            // that upserting a single model into a context twice can result in
+            // referenced models being unexpectedly deleted. It is unclear whether
+            // this is intended behavior or a bug. The store identifier appears
+            // to be a good proxy for whether the model has already been upserted.
+            if value.persistentModelID.storeIdentifier == nil {
+                merge(existingValue, value)
+                modelContext.insert(value)
+            }
         } else {
             try evict(for: key)
             modelContext.insert(value)
@@ -68,6 +75,11 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     public func clear() async throws {
         try modelContext.delete(model: Value.self)
         try await timestampStore.clear()
+    }
+    
+    @MainActor
+    public func save() throws {
+        try modelContext.save()
     }
     
     // MARK: - Constants

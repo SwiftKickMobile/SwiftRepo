@@ -15,7 +15,7 @@ import Foundation
 public protocol ModelResponse {
     /// Can be used to propagate additional metadata related to the response via an `ObservableStore`
     associatedtype Value
-    /// The type that will be used in a repositories model store
+    /// The type that will be used in a repository's model store
     associatedtype Model: StoreModel
 
     var value: Value { get }

@@ -21,11 +21,10 @@ class SwiftDataStoreTests: XCTestCase {
         let model = TestStoreModel(id: uuid)
         let _ = try store.set(key: model.id, value: model)
         let stored = try store.get(key: model.id)
-        XCTAssertTrue(stored?.merged == false)
         
         let model2 = TestStoreModel(id: uuid)
         let _ = try store.set(key: model.id, value: model2)
-        XCTAssertTrue(stored?.merged == true && stored?.updatedAt == model2.updatedAt)
+        XCTAssertTrue(stored?.updatedAt == model2.updatedAt)
     }
     
     func test_timestamp() async throws {
@@ -33,8 +32,6 @@ class SwiftDataStoreTests: XCTestCase {
         let uuid = UUID()
         let model = TestStoreModel(id: uuid)
         let _ = try store.set(key: model.id, value: model)
-        let stored = try store.get(key: model.id)
-        XCTAssertTrue(stored?.merged == false)
         
         let updatedAt = try store.age(of: uuid)
         XCTAssertNotNil(updatedAt)
@@ -51,12 +48,17 @@ class SwiftDataStoreTests: XCTestCase {
     @Model
     final class TestStoreModel: StoreModel, Equatable {
         var id: UUID
-        var merged = false
         var updatedAt = Date()
         
         public init(id: UUID, updatedAt: Date = Date()) {
             self.id = id
             self.updatedAt = updatedAt
+        }
+        
+        static func predicate(key: UUID) -> Predicate<TestStoreModel> {
+            #Predicate<TestStoreModel> {
+                $0.id == key
+            }
         }
     }
 
@@ -71,9 +73,8 @@ class SwiftDataStoreTests: XCTestCase {
             for: TestStoreModel.self,
             configurations: .init("TestStore", isStoredInMemoryOnly: true)
         )
-        return SwiftDataStore(modelContainer: modelContainer) { new, into in 
-            into.merged = true
-            into.updatedAt = new.updatedAt
+        return SwiftDataStore(modelContainer: modelContainer) { existing, into in
+            into.updatedAt = existing.updatedAt
         }
     }
 }
