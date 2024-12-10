@@ -9,6 +9,7 @@ import XCTest
 import SwiftData
 @testable import SwiftRepo
 
+@available(iOS 18, *)
 @MainActor
 class SwiftDataStoreTests: XCTestCase {
     

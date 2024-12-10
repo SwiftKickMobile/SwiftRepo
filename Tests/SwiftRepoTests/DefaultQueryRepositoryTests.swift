@@ -32,6 +32,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         XCTAssertEqual(spy.publishedValues, [valueA1, valueA1, valueA1, valueA2])
     }
     
+    @available(iOS 17, *)
     @MainActor
     func test_GetSuccess_ModelResponse() async throws {
         let repo = makeModelResponseStoreRepository(
@@ -59,6 +60,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         XCTAssertEqual(try modelStore.get(key: Self.modelCId), responseB.models.last)
     }
     
+    @available(iOS 17, *)
     @MainActor
     func test_GetSuccess_ModelResponse_Trim() async throws {
         let repo = makeModelResponseStoreRepository(
@@ -98,6 +100,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
         XCTAssertEqual(spy.publishedValues.compactMap { $0 as? TestError }, [TestError(category: .failure)])
     }
     
+    @available(iOS 17, *)
     func test_GetError_ModelResponse() async throws {
         let repo = makeModelResponseStoreRepository(
             delayedValues: DelayedValues<TestModelResponse>(values: [
@@ -234,6 +237,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
             var id: UUID
             var updatedAt = Date()
             
+            @available(iOS 17, *)
             static func predicate(key: UUID) -> Predicate<DefaultQueryRepositoryTests.TestModelResponse.TestStoreModel> {
                 #Predicate { $0.id == key }
             }
@@ -294,6 +298,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
     
     /// Makes a repository that stores a single value per unique query ID,
     /// and places ModelResponse values in a separate model store.
+    @available(iOS 17, *)
     private func makeModelResponseStoreRepository(
         mergeStrategy: ModelStoreMergeStrategy = .upsertAppend,
         queryStrategy: QueryStrategy = .ifOlderThan(0.1),
