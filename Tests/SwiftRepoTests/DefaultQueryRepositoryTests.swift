@@ -62,7 +62,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
     @MainActor
     func test_GetSuccess_ModelResponse_Trim() async throws {
         let repo = makeModelResponseStoreRepository(
-            mergeStrategy: .upsertTrim,
+            mergeStrategy: .trim,
             delayedValues: DelayedValues<TestModelResponse>(values: [
                 .makeValue(responseA),
                 .makeValue(responseB)
@@ -321,17 +321,16 @@ class DefaultQueryRepositoryTests: XCTestCase {
     /// Makes a repository that stores a single value per unique query ID,
     /// and places ModelResponse values in a separate model store.
     private func makeModelResponseStoreRepository(
-        mergeStrategy: ModelStoreMergeStrategy = .upsertAppend,
+        mergeStrategy: ModelStoreMergeStrategy = .append,
         merge: @escaping (_ existing: Model, _ new: Model) -> Model = { _, newValue in newValue },
         queryStrategy: QueryStrategy = .ifOlderThan(0.1),
         delayedValues: DelayedValues<TestModelResponse>
     ) -> DefaultQueryRepository<String, String, String, TestModelResponse.Value> {
-        self.modelStore = DictionaryStore<TestModelResponse.Model.Key, TestModelResponse.Model>()
+        self.modelStore = DictionaryStore<TestModelResponse.Model.Key, TestModelResponse.Model>(merge: merge)
         return DefaultQueryRepository<String, String, String, TestModelResponse.Value>(
             observableStore: DefaultObservableStore<String, String, TestModelResponse.Value>(store: DictionaryStore()),
             modelStore: modelStore,
             mergeStrategy: mergeStrategy,
-            merge: merge,
             query: DefaultQuery(queryOperation: { _ in
                 try await delayedValues.next()
             }),
