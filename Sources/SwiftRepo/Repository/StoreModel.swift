@@ -21,39 +21,3 @@ public protocol StoreModel {
     /// A predicate that can be used to query for the `StoreModel`
     static func predicate(key: Key) -> Predicate<Self>
 }
-
-public extension StoreModel where Key == Data {
-
-    static func predicate(key: Key) -> Predicate<Self> {
-        #Predicate<Self> { model in
-            model.id == key
-        }
-    }
-}
-
-public extension StoreModel where Key == UUID {
-
-    static func predicate(key: Key) -> Predicate<Self> {
-        #Predicate<Self> { model in
-            model.id == key
-        }
-    }
-}
-
-public extension StoreModel where Key == String {
-
-    static func predicate(key: Key) -> Predicate<Self> {
-        #Predicate<Self> { model in
-            model.id == key
-        }
-    }
-}
-
-public extension StoreModel where Key == Int {
-
-    static func predicate(key: Key) -> Predicate<Self> {
-        #Predicate<Self> { model in
-            model.id == key
-        }
-    }
-}

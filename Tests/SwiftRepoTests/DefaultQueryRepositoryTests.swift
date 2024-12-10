@@ -86,6 +86,24 @@ class DefaultQueryRepositoryTests: XCTestCase {
         XCTAssertEqual(try modelStore.get(key: Self.modelBId), responseB.models.first)
         XCTAssertEqual(try modelStore.get(key: Self.modelCId), responseB.models.last)
     }
+    
+    @MainActor
+    func test_GetSuccess_ModelResponse_Merge() async throws {
+        let repo = makeModelResponseStoreRepository(
+            merge: { existing, new in
+                return existing
+            },
+            delayedValues: DelayedValues<TestModelResponse>(values: [
+                .makeValue(responseA),
+                .makeValue(responseA1)
+            ])
+        )
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: {})
+        XCTAssertEqual(try modelStore.get(key: Self.modelAId), responseA.models.first)
+        try await Task.sleep(for: .seconds(0.1))
+        await repo.get(queryId: id, variables: id, errorIntent: .indispensable, willGet: {})
+        XCTAssertEqual(try modelStore.get(key: Self.modelAId), responseA.models.first)
+    }
 
     func test_GetError() async throws {
         let repo = makeIDStoreRepository()
@@ -225,6 +243,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
     // MARK: - Constants
 
     typealias QueryStoreKeyType = QueryStoreKey<String, String>
+    private typealias Model = TestModelResponse.Model
     
     private struct TestModelResponse: ModelResponse {
         var value: String
@@ -233,6 +252,12 @@ class DefaultQueryRepositoryTests: XCTestCase {
         struct TestStoreModel: StoreModel, Equatable {
             var id: UUID
             var updatedAt = Date()
+            var value: String
+            
+            init(id: UUID, value: String = "1") {
+                self.id = id
+                self.value = value
+            }
             
             static func predicate(key: UUID) -> Predicate<DefaultQueryRepositoryTests.TestModelResponse.TestStoreModel> {
                 #Predicate { $0.id == key }
@@ -253,6 +278,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
     private static let modelCId = UUID()
     
     private let responseA = TestModelResponse(value: "responseA", models: [.init(id: modelAId)])
+    private let responseA1 = TestModelResponse(value: "responseA", models: [.init(id: modelAId, value: "2")])
     private let responseB = TestModelResponse(value: "responseB", models: [.init(id: modelBId), .init(id: modelCId)])
 
     // MARK: - Variables
@@ -296,6 +322,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
     /// and places ModelResponse values in a separate model store.
     private func makeModelResponseStoreRepository(
         mergeStrategy: ModelStoreMergeStrategy = .upsertAppend,
+        merge: @escaping (_ existing: Model, _ new: Model) -> Model = { _, newValue in newValue },
         queryStrategy: QueryStrategy = .ifOlderThan(0.1),
         delayedValues: DelayedValues<TestModelResponse>
     ) -> DefaultQueryRepository<String, String, String, TestModelResponse.Value> {
@@ -304,6 +331,7 @@ class DefaultQueryRepositoryTests: XCTestCase {
             observableStore: DefaultObservableStore<String, String, TestModelResponse.Value>(store: DictionaryStore()),
             modelStore: modelStore,
             mergeStrategy: mergeStrategy,
+            merge: merge,
             query: DefaultQuery(queryOperation: { _ in
                 try await delayedValues.next()
             }),

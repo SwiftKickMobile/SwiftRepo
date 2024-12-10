@@ -122,6 +122,7 @@ public extension Query {
     ///   - variables: The query variables
     ///   - store: The observable store where query result values are cached
     ///   - modelStore: The model store where query result models are cached
+    ///   - mergeStrategy: Specifies how models are stored in the `modelStore`
     ///   - unmappedKey: The store key associated with this query. This is typically either the query ID or `QueryStoreKey`, depending on the granularity of storage being used.
     ///   - valueVariablesFactory: a closure that converts the value into its associated variables
     ///   - keyFactory: a closure that converts the query ID and variables into a store key
@@ -165,23 +166,23 @@ public extension Query {
                 // For this version, we pass `value.value`, since `Store.Value == Value.Value`
                 try await store.set(key: storeKey, value: value.value)
             },
-            modelStoreSet: { value in
+            modelStoreSet: { @MainActor value in
                 for model in value.models {
-                    try await modelStore.set(key: model.id, value: model)
+                    try modelStore.set(key: model.id, value: model)
                 }
                 
                 switch mergeStrategy {
-                case .upsertAppend:
+                case .append:
                     // No additional action required
                     break
-                case .upsertTrim:
+                case .trim:
                     // Capture keys for models not in the new `Value.models` array,
                     // and remove the associated model from the store.
                     let keepModelKeys = Set(value.models.map { $0.id })
-                    let allModelKeys = Set(try await modelStore.keys)
+                    let allModelKeys = Set(try modelStore.keys)
                     let trimModelKeys = allModelKeys.subtracting(keepModelKeys)
                     for modelKey in trimModelKeys {
-                        try await modelStore.set(key: modelKey, value: nil)
+                        try modelStore.set(key: modelKey, value: nil)
                     }
                 }
             }
@@ -222,7 +223,7 @@ private extension Query {
         strategy: QueryStrategy,
         willGet: WillGet?,
         storeSet: @escaping (Key, Value) async throws -> Void,
-        modelStoreSet: ((Value) async throws -> Void)?
+        modelStoreSet: (@MainActor (Value) async throws -> Void)?
     ) async throws -> Value?
     where Store: ObservableStore, Store.Key == Key, Store.PublishKey == QueryId {
         let key = await store.map(key: unmappedKey)

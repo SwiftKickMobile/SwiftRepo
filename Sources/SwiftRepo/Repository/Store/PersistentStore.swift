@@ -55,6 +55,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
             let keyData = try encoder.encode(key)
             try evict(for: keyData)
         }
+        try modelContext.save()
         return value
     }
     
@@ -88,6 +89,10 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
             let value: Data = try encoder.encode(value)
             self.id = id
             self.value = value
+        }
+        
+        static func predicate(key: Data) -> Predicate<TimestampedValue> {
+            #Predicate<TimestampedValue> { $0.id == key }
         }
     }
     

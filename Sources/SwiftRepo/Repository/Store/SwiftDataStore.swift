@@ -14,8 +14,8 @@ import SwiftRepoCore
 public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentModel, Model.Key: Hashable & Codable {
     public typealias Key = Model.Key
     public typealias Value = Model
-    /// A closure that defines how new values are merged into existing values.
-    public typealias Merge = (_ new: Value, _ into: Value) -> Void
+    /// A closure that defines how existing values are merged into new values.
+    public typealias Merge = (_ existing: Value, _ into: Value) -> Void
     
     @MainActor
     public var keys: [Key] {
@@ -41,13 +41,21 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
         }
         
         if let existingValue = try get(key: key), let merge {
-            // If the store contains an existing value for this key,
-            // merge the two as necessary and save the resulting value.
-            merge(value, existingValue)
+            // If the value already has a store id associated with it, don't
+            // insert it in the context. This technique is based on a discovery
+            // that upserting a single model into a context twice can result in
+            // referenced models being unexpectedly deleted. It is unclear whether
+            // this is intended behavior or a bug. The store identifier appears
+            // to be a good proxy for whether the model has already been upserted.
+            if value.persistentModelID.storeIdentifier == nil {
+                merge(existingValue, value)
+                modelContext.insert(value)
+            }
         } else {
             try evict(for: key)
             modelContext.insert(value)
         }
+        try modelContext.save()
         // Update the timestamp store when values are updated
         try timestampStore.set(key: key, value: UUID())
         return value
@@ -66,6 +74,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     @MainActor
     public func clear() async throws {
         try modelContext.delete(model: Value.self)
+        try modelContext.save()
         try await timestampStore.clear()
     }
     
@@ -88,6 +97,7 @@ public class SwiftDataStore<Model: StoreModel>: Store where Model: PersistentMod
     private func evict(for key: Key) throws {
         let predicate = Value.predicate(key: key)
         try modelContext.delete(model: Value.self, where: predicate)
+        try modelContext.save()
         // Clear the timestamp when the value is cleared
         try timestampStore.set(key: key, value: nil)
     }
