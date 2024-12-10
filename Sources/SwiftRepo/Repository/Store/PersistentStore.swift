@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 
 /// A persistent `Store` implementation implementation using `SwiftData`.
+@available(iOS 18, *)
 public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     public var keys: [Key] {
