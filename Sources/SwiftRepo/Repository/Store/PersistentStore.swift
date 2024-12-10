@@ -55,6 +55,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
             let keyData = try encoder.encode(key)
             try evict(for: keyData)
         }
+        // TODO: revisit whether this is actually needed or not. It seems we could rely on auto save
         try modelContext.save()
         return value
     }
