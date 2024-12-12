@@ -14,7 +14,7 @@ import SwiftRepoCore
 /// If the remote mutation fails and there are no pending remote mutations, then the last known valid value is restored, potentially reverting optimistic local mutations.
 /// A valid value is defined as either the original value from the last idle period or the most recent success result from a remote mutation.
 public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
-    where MutationId: Hashable, Variables: Hashable {
+where MutationId: SyncHashable, Variables: SyncHashable, Value: Sendable {
     // MARK: - API
 
     public func mutate(id: MutationId, variables: Variables) async throws {
@@ -40,6 +40,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
         }
     }
 
+    
     public nonisolated func publisher(for id: MutationId) -> AnyPublisher<ResultType, Never> {
         subject
             .filter { $0.mutationId == id }
@@ -133,3 +134,6 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
         }
     }
 }
+
+/// I do not believe that PassthroughSubject is actually sendable. We may need to create an actual sendable subject.
+extension PassthroughSubject: @unchecked @retroactive Sendable {}

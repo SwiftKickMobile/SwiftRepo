@@ -9,6 +9,6 @@ import Foundation
 /// directly in `QueryRepository`, the compiler doesn't like it and I was getting compiler segmentation faults
 /// compiling generated mocks.
 public protocol HasValueResult {
-    associatedtype Value
+    associatedtype Value: Sendable
     typealias ValueResult = Result<Value, Error>
 }

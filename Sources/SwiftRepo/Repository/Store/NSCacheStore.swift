@@ -6,7 +6,7 @@
 import Foundation
 
 // An in-memory implementation of `Store` that uses a default `NSCache`
-public final actor NSCacheStore<Key, Value>: Store where Key: Hashable {
+@MainActor public final class NSCacheStore<Key, Value>: Store where Key: SyncHashable, Value: Sendable {
     // MARK: - API
 
     @MainActor

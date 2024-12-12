@@ -11,7 +11,8 @@ import SwiftData
 import SwiftRepoCore
 
 // An implementation of `Store` that uses `SwiftData` under the hood
-public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: PersistentModel, Model.Key: Hashable & Codable {
+@available(iOS 18, *)
+@MainActor public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: PersistentModel, Model.Key: SyncHashable & Codable {
     public typealias Key = Model.Key
     public typealias Value = Model
     /// A closure that defines how existing values are merged into new values.

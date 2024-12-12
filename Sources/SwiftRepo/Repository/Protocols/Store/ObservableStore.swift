@@ -23,7 +23,7 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     /// the key and publish key can be equivalent, e.g. the query ID, if only the most recent value needs to be stored for a given key. In most cases, `QueryStoreKey` should be
     /// used because it provides the most responsive user experience. Query ID is a better choice if the variables are constant or cannot be relied upon to as a stable identifier
     /// (e.g. temporary FileStack URLs).
-    associatedtype PublishKey: Hashable
+    associatedtype PublishKey: SyncHashable
 
     /// The identifiable result type used by subscribers.
     typealias StoreResultType = StoreResult<Key, Value, Error>
@@ -200,14 +200,14 @@ extension ObservableStore where Value: HasMutatedAt {
         AnySubscriber { subscription in
             subscription.request(.unlimited)
         } receiveValue: { value in
-            Task {
+            do {
                 let key = value[keyPath: keyField]
-                if let currentMutatedAt = try await self.get(key: key)?.mutatedAt,
+                if let currentMutatedAt = try self.get(key: key)?.mutatedAt,
                    value.mutatedAt <= currentMutatedAt {
-                    return
+                    return .unlimited
                 }
-                try await self.set(key: key, value: value)
-            }
+                try self.set(key: key, value: value)
+            } catch {}
             return .unlimited
         } receiveCompletion: { _ in
         }
@@ -215,3 +215,5 @@ extension ObservableStore where Value: HasMutatedAt {
 }
 
 extension ObservableStoreChange: Equatable where Value: Equatable {}
+
+extension AnySubscriber: @unchecked @retroactive Sendable {}

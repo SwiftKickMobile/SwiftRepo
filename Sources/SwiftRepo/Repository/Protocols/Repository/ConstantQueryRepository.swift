@@ -13,7 +13,7 @@ import SwiftRepoCore
 /// a single, simplified interface.  An example use case is account service. Specifically getting account info, which requires no input variables.
 public protocol ConstantQueryRepository<Variables, Value>: HasValueResult {
     
-    associatedtype Variables: Hashable
+    associatedtype Variables: SyncHashable
 
     /// Performs the query, if needed, based on the query stategy of the underlying implementation.
     ///

@@ -15,11 +15,11 @@ import SwiftRepoCore
 /// 2. File repository, where the query ID is typically some unique string, such as a UUID + prefix and the variables are a potentially temporary file URL.
 public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult {
     
-    associatedtype QueryId: Hashable
+    associatedtype QueryId: SyncHashable
 
-    associatedtype Variables: Hashable
+    associatedtype Variables: SyncHashable
 
-    associatedtype Key: Hashable
+    associatedtype Key: SyncHashable
 
     /// Performs the query, if needed, based on the query stategy of the underlying implementation.
     ///

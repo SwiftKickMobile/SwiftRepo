@@ -10,12 +10,13 @@ import Foundation
 /// are somehow causing a segmentation fault during compilation. It seems to be explicitly due to the `typealias ResultType`.
 /// For some reason, pushing `typealias ResultType` into a parent protocol fixes the segumentation fault. It also, unfortunately,
 /// forces the order of the mocked generic types to be `<Variables, MutationId, Value>` rather than `<MutationId, Variables, Value>`.
+public typealias SyncHashable = Hashable & Sendable
 public protocol MutationBase {
     /// Mutation ID identifies a unique mutation for the purposes of optimistic updating, debouncing and providing ID-scoped publishers.
-    associatedtype MutationId: Hashable
+    associatedtype MutationId: SyncHashable
 
     /// The mutation parameters.
-    associatedtype Variables: Hashable
+    associatedtype Variables: SyncHashable
 
     /// The type of value being mutated.
     associatedtype Value

@@ -9,7 +9,7 @@ import SwiftRepoCore
 
 /// The default `ConstantQueryRepository` implementation.
 public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQueryRepository
-    where Variables: Hashable {
+where Variables: SyncHashable, Value: Sendable {
     // MARK: - API
 
     public typealias QueryType = any Query<Variables, Variables, Value>
@@ -43,7 +43,7 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
         variables: Variables,
         observableStore: ObservableStoreType,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @Sendable @escaping (Variables) async throws -> Value
     ) {
         self.init(
             variables: variables,
@@ -66,7 +66,7 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
     public func get(
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy?,
-        willGet: @escaping () async -> Void
+        willGet: @Sendable @escaping () async -> Void
     ) async {
         await repository.get(
             queryId: variables,

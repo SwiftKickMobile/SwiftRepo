@@ -17,16 +17,16 @@ import SwiftRepoCore
 ///     2. When requesting a publisher. This prevents stale data from being published on view model initialization.
 /// 2. Using the `.ifNotStored` query strategy to ensure that, as additional pages are loaded, they are appended to the existing store.
 public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRepository
-    where QueryId: Hashable, Variables: Hashable, Key: Hashable, Variables: HasCursorPaginationInput {
+where QueryId: SyncHashable, Variables: SyncHashable, Key: SyncHashable, Variables: HasCursorPaginationInput, Value: Sendable {
     // MARK: - API
 
     public typealias QueryType = any Query<QueryId, Variables, Value>
 
     public typealias ObservableStoreType = any ObservableStore<Key, QueryId, Value>
 
-    public typealias KeyFactory = (_ queryId: QueryId, _ variables: Variables) -> Key
+    public typealias KeyFactory = @Sendable (_ queryId: QueryId, _ variables: Variables) -> Key
 
-    public typealias ValueVariablesFactory = (_ queryId: QueryId, _ variables: Variables, _ value: Value) -> Variables
+    public typealias ValueVariablesFactory = @Sendable (_ queryId: QueryId, _ variables: Variables, _ value: Value) -> Variables
 
     @MainActor
     public func get(
@@ -34,7 +34,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
         variables: Variables,
         errorIntent: ErrorIntent,
         queryStrategy _: QueryStrategy? = nil,
-        willGet: @escaping () async -> Void
+        willGet: @Sendable @escaping () async -> Void
     ) async {
         // Evict stale data when getting the first page.
         if !variables.isPaging {
@@ -81,7 +81,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
     public convenience init(
         observableStore: any ObservableStore<Key, QueryId, Value>,
         ifOlderThan: TimeInterval,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @Sendable @escaping (Variables) async throws -> Value
     )
         where Key == QueryStoreKey<QueryId, Variables>,
         Value: HasValueVariables,
