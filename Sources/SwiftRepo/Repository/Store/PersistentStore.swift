@@ -9,8 +9,9 @@ import Foundation
 import SwiftData
 
 /// A persistent `Store` implementation implementation using `SwiftData`.
+public typealias SyncCodable = Codable & Sendable
 @available(iOS 18, *)
-public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
+@MainActor public class PersistentStore<Key: Codable & SyncHashable, Value: SyncCodable>: Store {
     
     public var keys: [Key] {
         get throws {
@@ -78,7 +79,7 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     // MARK: - Constants
     
     @Model
-    class TimestampedValue: StoreModel {
+    class TimestampedValue: StoreModel, @unchecked Sendable {
         #Index<TimestampedValue>([\.id])
         
         @Attribute(.unique)

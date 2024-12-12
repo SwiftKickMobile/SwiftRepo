@@ -1,4 +1,4 @@
-// swift-tools-version:5.8
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -43,5 +43,6 @@ let package = Package(
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
         ),
-    ]
+    ],
+    swiftLanguageModes: [.version("6.0")]
 )

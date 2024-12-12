@@ -9,7 +9,7 @@ import SwiftRepoCore
 
 /// The default `VariableQueryRepository` implementation.
 public final class DefaultVariableQueryRepository<Variables, Value>: VariableQueryRepository
-    where Variables: Hashable {
+where Variables: SyncHashable, Value: Sendable {
     // MARK: - API
 
     public typealias QueryType = any Query<Variables, Variables, Value>
@@ -39,7 +39,7 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
     public convenience init(
         observableStore: any ObservableStore<Variables, Variables, Value>,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @Sendable @escaping (Variables) async throws -> Value
     ) {
         self.init(
             observableStore: observableStore,
@@ -73,7 +73,7 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
         variables: Variables,
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
-        willGet: @escaping () async -> Void
+        willGet: @Sendable @escaping () async -> Void
     ) async {
         await repository.get(
             queryId: variables,

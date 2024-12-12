@@ -5,10 +5,10 @@
 
 import Foundation
 
-public actor Throttle<T> {
+public actor Throttle<T: Sendable> {
     // MARK: - API
 
-    nonisolated public init(rate: Duration, callback: @escaping (T) async -> Void) {
+    public init(rate: Duration, callback: @escaping (T) async -> Void) {
         self.rate = rate
         self.callback = callback
     }

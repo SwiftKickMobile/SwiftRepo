@@ -9,7 +9,7 @@ import SwiftRepoCore
 
 /// Pairs with `LoadingController` to display loading, error and empty states.
 public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorContent, EmptyContent, UIErrorType: UIError>: View
-    where DataType: Emptyable & Equatable, Content: View, LoadingContent: View, ErrorContent: View, EmptyContent: View {
+where DataType: SyncEmptyable & Equatable, Content: View, LoadingContent: View, ErrorContent: View, EmptyContent: View {
 
     // MARK: - API
 

@@ -12,9 +12,9 @@ import Foundation
 /// through database queries, rather than published by a `QueryRepository`,
 /// such as when using SwiftData.
 @available(iOS 17, *)
-public protocol StoreModel {
+public protocol StoreModel: Sendable {
     /// The type to use as the identifier for the model
-    associatedtype Key = any Hashable
+    associatedtype Key = any SyncHashable
 
     /// The identifier of the model
     var id: Key { get }
