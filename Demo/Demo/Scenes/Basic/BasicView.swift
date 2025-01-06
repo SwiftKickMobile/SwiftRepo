@@ -30,6 +30,7 @@ struct BasicView: View {
                         Text("0.2s").tag(0.2)
                         Text("0.5s").tag(0.5)
                     }
+                    .pickerStyle(SegmentedPickerStyle())
                     Text("Change response time to see effect of indefinite loading behavior. The indefinite delay is set to \(viewModel.indefiniteDelay.formatted(.number.precision(.fractionLength(2)))) seconds.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -40,11 +41,12 @@ struct BasicView: View {
                     Text("Use Case")
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Picker("Select a Use Case", selection: $viewModel.useCase) {
-                        Text("Happy Path").tag(BasicViewModel.UseCase.happy)
-                        Text("Empty State").tag(BasicViewModel.UseCase.empty)
-                        Text("Error State").tag(BasicViewModel.UseCase.error)
-                        Text("Error Banner").tag(BasicViewModel.UseCase.refreshError)
+                        Text("Happy").tag(BasicViewModel.UseCase.happy)
+                        Text("Empty").tag(BasicViewModel.UseCase.empty)
+                        Text("Error").tag(BasicViewModel.UseCase.error)
+                        Text("Banner").tag(BasicViewModel.UseCase.refreshError)
                     }
+                    .pickerStyle(SegmentedPickerStyle())
                     Text(viewModel.useCase.description)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -74,13 +76,13 @@ extension BasicViewModel.UseCase {
     var description: String {
         switch self {
         case .happy:
-            "Loads an initial result. Loads a different result on pull-to-refresh."
+            "The  happy path. Loads an initial result, then loads a different result after pull-to-refresh."
         case .empty:
-            "Loads an empty result. Loads a non-empty result on retry."
+            "The empty state. Loads an empty result, then loads a non-empty result on retry."
         case .error:
-            "Initially receives an error response. Loads a result on retry."
+            "The error state. Initially receives an error response, then loads a result after \"Retry\" button tapped."
         case .refreshError:
-            "Loads an initial result. Receives an error on pull-to-refresh. Loads a different result on second pull-to-refresh."
+            "The error banner state. Loads an initial result, then receives an error after pull-to-refresh, showing an error banner over existing content. Finally, loads a different result after a second pull-to-refresh."
         }
     }
 }

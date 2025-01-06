@@ -25,8 +25,14 @@ public struct LoadingEmptyView: View {
 
     public var body: some View {
         VStack {
+            Image(systemName: "tray")
+                .font(.title)
+                .foregroundStyle(.secondary)
             Text("No Content")
                 .font(.title)
+            Text("Please try again later.")
+                .font(.body)
+                .foregroundStyle(.secondary)
             if let retry {
                 Spacer().frame(height: 40)
                 Button("Retry") {

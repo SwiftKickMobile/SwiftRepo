@@ -33,6 +33,7 @@ public struct LoadingErrorView: View {
                 .font(.title)
             Text(error.message)
                 .font(.body)
+                .foregroundStyle(.secondary)
             if error.isRetryable, let retry {
                 Spacer().frame(height: 40)
                 Button("Retry") {
