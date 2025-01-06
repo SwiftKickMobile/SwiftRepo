@@ -169,6 +169,11 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
         }
     }
 
+    /// Internally used by the loading controller view to wait for the indefinite controller before turning off the pull-to-refresh state.
+    func stop() async {
+        await indefiniteController?.stop()
+    }
+
     // MARK: - Constants
 
     private typealias VoidTaskType = Task<Void, Error>

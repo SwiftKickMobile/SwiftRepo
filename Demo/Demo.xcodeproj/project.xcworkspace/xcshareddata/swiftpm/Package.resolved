@@ -1,0 +1,15 @@
+{
+  "originHash" : "f55b0a5c8897f5ef1e43b6adbc3f311a5547cd114993816620411e4c96c34239",
+  "pins" : [
+    {
+      "identity" : "swiftmessages",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftKickMobile/SwiftMessages",
+      "state" : {
+        "revision" : "c544df6ce316422b9d65a571f932e800213dd09c",
+        "version" : "10.0.1"
+      }
+    }
+  ],
+  "version" : 3
+}
