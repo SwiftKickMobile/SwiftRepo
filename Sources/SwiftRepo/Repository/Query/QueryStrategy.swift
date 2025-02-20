@@ -6,7 +6,7 @@
 import Foundation
 
 /// A list of strategies for determining when stored data needs to be refreshed.
-public enum QueryStrategy {
+public enum QueryStrategy: Sendable {
     /// A new query is performed if the stored data is older than the specified `TimeInterval`.
     /// Stored data is provided initially, regardless of the age of the stored value.
     case ifOlderThan(TimeInterval)

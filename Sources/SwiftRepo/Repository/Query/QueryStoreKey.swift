@@ -7,7 +7,7 @@ import Foundation
 
 /// A data model to use for storing query results by query ID and variables. This can type can be used as the store key in order to
 /// maintain a cache for all variables rather than just the most recently used variable.
-public struct QueryStoreKey<QueryId, Variables>: Hashable where QueryId: Hashable, Variables: Hashable {
+public struct QueryStoreKey<QueryId, Variables>: SyncHashable where QueryId: SyncHashable, Variables: SyncHashable {
     public let queryId: QueryId
     public let variables: Variables
 

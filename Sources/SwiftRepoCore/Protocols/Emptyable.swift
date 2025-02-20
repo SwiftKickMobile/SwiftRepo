@@ -19,7 +19,7 @@ extension Bool: Emptyable {
 
 extension Array: Emptyable {}
 
-extension Set: Emptyable {}
+extension Set: Emptyable  {}
 
 extension Dictionary: Emptyable {}
 

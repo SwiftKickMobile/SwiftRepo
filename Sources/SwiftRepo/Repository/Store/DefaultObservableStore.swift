@@ -6,7 +6,7 @@
 import Combine
 import Foundation
 
-public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableStore where Key: Hashable, PublishKey: Hashable {
+public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableStore where Key: SyncHashable, PublishKey: SyncHashable, Value: Sendable {
     // MARK: - API
 
     /// A closure that converts a key into a publish key. This mapping is required in order to route changes to the relevant publishers. The most common
@@ -81,17 +81,18 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
 
     public private(set) lazy var subscriber: AnySubscriber<StoreResultType, Never> = AnySubscriber { subscription in
         subscription.request(.unlimited)
-    } receiveValue: { unmappedResult in
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            let result = StoreResult(key: self.map(key: unmappedResult.key), result: unmappedResult.result)
+    } receiveValue: { [weak self] unmappedResult in
+        guard let self else { return .unlimited }
+        do {
+            let result = StoreResult(key: map(key: unmappedResult.key), result: unmappedResult.result)
             switch result.result {
             case let .success(value):
                 try self.set(key: result.key, value: value)
             case .failure:
                 self.subject.send(result)
             }
-        }
+        } catch {}
+           
         return .unlimited
     } receiveCompletion: { _ in
     }
@@ -100,18 +101,17 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
         AnySubscriber { subscription in
             subscription.request(.unlimited)
         } receiveValue: { value in
-            Task { [weak self] in
-                guard let self = self else { return }
+            do {
                 let key = value[keyPath: keyField]
-                try await self.set(key: self.map(key: key), value: value)
-            }
+                try self.set(key: self.map(key: key), value: value)
+            } catch {}
             return .unlimited
         } receiveCompletion: { _ in
         }
     }
 
-    public func currentKey(for publishKey: PublishKey) async -> Key? {
-        await currentKey[publishKey]
+    public func currentKey(for publishKey: PublishKey) -> Key? {
+        currentKey[publishKey]
     }
 
     @MainActor
@@ -148,16 +148,16 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
 
     public func mutate(publishKey: PublishKey, mutation: (Key, Value) -> Value?) async throws {
         let timestamp = Date().timeIntervalSince1970
-        for key in try await keys(for: publishKey) {
+        for key in try keys(for: publishKey) {
             let elapsedTime = Date().timeIntervalSince1970 - timestamp
-            guard let value = try await store.get(key: key),
-                  (try await store.age(of: key) ?? TimeInterval.greatestFiniteMagnitude) > elapsedTime,
+            guard let value = try store.get(key: key),
+                  (try store.age(of: key) ?? TimeInterval.greatestFiniteMagnitude) > elapsedTime,
                   let mutatedValue = mutation(key, value) else { continue }
-            switch await currentKey[publishKey] == key {
+            switch currentKey[publishKey] == key {
             case true:
-                try await actorSet(key: key, value: mutatedValue, isSettingCurrentKey: false)
+                try actorSet(key: key, value: mutatedValue, isSettingCurrentKey: false)
             case false:
-                try await store.set(key: key, value: mutatedValue)
+                try store.set(key: key, value: mutatedValue)
             }
         }
     }
@@ -276,3 +276,4 @@ public final class DefaultObservableStore<Key, PublishKey, Value>: ObservableSto
         }
     }
 }
+

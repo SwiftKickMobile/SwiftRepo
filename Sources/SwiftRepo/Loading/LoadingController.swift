@@ -8,7 +8,8 @@ import Combine
 import SwiftRepoCore
 
 /// A state machine for loading, loaded, error and empty states.
-public final actor LoadingController<DataType> where DataType: Emptyable {
+public typealias SyncEmptyable = Emptyable & Sendable
+public final actor LoadingController<DataType> where DataType: SyncEmptyable {
 
     // MARK: - API
 
@@ -17,7 +18,7 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
     public private(set) lazy var state: AnyPublisher<State, Never> = stateSubject.eraseToAnyPublisher()
 
     /// The data loading states.
-    public enum State: CustomStringConvertible {
+    public enum State: CustomStringConvertible & Sendable {
         /// An initial loading state when there is no data to display. Components are responsible for displaying their own UI,
         /// if they choose to do so, when updating after initial data has already been loaded. For example, a list view may display
         /// a "pull-to-refresh" UI until the next state transition.
@@ -398,7 +399,7 @@ extension LoadingController.State: Equatable where DataType: Equatable {
     }
 }
 
-private extension Result where Success: Emptyable {
+private extension Result where Success: SyncEmptyable {
     @MainActor
     func asLoadState(
         currentLoadState: LoadingController<Success>.LoadState,

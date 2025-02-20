@@ -19,8 +19,8 @@ import SwiftRepoCore
 ///  can be observed via the `QueryRepository` publisher. This publisher is essential for driving loading and error states and can publish
 ///  any additional metadata contained in the query response. However, if there is no such data, the type can be `Unused`. The "Database"
 ///  approach is typically used when models are value types stored in a database and values are fetched via database queries, e.g. SwiftData.
-public final class DefaultQueryRepository<QueryId, Variables, Key, Value>: QueryRepository
-where QueryId: Hashable, Variables: Hashable, Key: Hashable {
+public final class DefaultQueryRepository<QueryId, Variables, Key, Value>: QueryRepository, Sendable
+where QueryId: SyncHashable, Variables: SyncHashable, Key: SyncHashable, Value: Sendable {
 
     // MARK: - API
 
@@ -34,13 +34,13 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     /// when the key is query ID, only one value is stored per query ID. On ther other hand, when the key is `QueryStoreKey`,
     /// one value is stored per unique query ID and variables. For both of these use cases, convenience initializers are provided
     /// that automatically supply the key factory.
-    public typealias KeyFactory = (_ queryId: QueryId, _ variables: Variables) -> Key
+    public typealias KeyFactory = @Sendable (_ queryId: QueryId, _ variables: Variables) -> Key
 
     /// A closure for extracting variables from values. This closure helps with establishing unique store keys. This is primaryliy used with
     /// sorting and filtering service calls where the client allows the service to select default variables and send them back in the response. These use
     /// cases create a condition where two variables means the same thing. This closure give the repo the ability to detect these situations as they
     /// happen and add key mappings to the observable store via `observableStore.addMapping(from:to:)`
-    public typealias ValueVariablesFactory<FactoryValue> = (_ queryId: QueryId, _ variables: Variables, _ value: FactoryValue) -> Variables
+    public typealias ValueVariablesFactory<FactoryValue> = @Sendable (_ queryId: QueryId, _ variables: Variables, _ value: FactoryValue) -> Variables
 
     /// Creates a "Classic" query repository. There are simplified convenience initializers, so this one is typically not called directly.
     public init(
@@ -60,7 +60,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
                 try await observableStore.set(key: key, value: nil)
             }
         }
-        get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
+        get = { @Sendable key, queryId, variables, errorIntent, queryStrategy, willGet in
             _ = try await query.get(
                 id: queryId,
                 variables: variables,
@@ -86,6 +86,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ///   - queryStrategy: The query strategy to use.
     ///   - valueVariablesFactory: a closure that converts the value into its associated variables
     ///   - keyFactory: a closure that converts the query ID and variables into a store key
+    @available(iOS 17, *)
     public init<Model, QueryValue>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
@@ -105,7 +106,8 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
                 try await observableStore.set(key: key, value: nil)
             }
         }
-        get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
+        
+        get = { @Sendable key, queryId, variables, errorIntent, queryStrategy, willGet in
             _ = try await query.get(
                 id: queryId,
                 variables: variables,
@@ -132,7 +134,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     public convenience init(
         observableStore: ObservableStoreType,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @Sendable @escaping (Variables) async throws -> Value
     ) where Key == QueryId {
         self.init(
             observableStore: observableStore,
@@ -151,12 +153,13 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ///   - mergeStrategy: Specifies how models are stored in the `modelStore`.
     ///   - queryStrategy: The query strategy to use.
     ///   - queryOperation: The operation to use to perform the actual query.
+    @available(iOS 17, *)
     public convenience init<Model>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
         mergeStrategy: ModelStoreMergeStrategy,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @Sendable @escaping (Variables) async throws -> Value
     ) where Model: StoreModel, Value: ModelResponse, Model == Value.Model, Key == QueryId, Value == Value.Value {
         self.init(
             observableStore: observableStore,
@@ -177,7 +180,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     public convenience init(
         observableStore: any ObservableStore<Key, QueryId, Value>,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @Sendable @escaping (Variables) async throws -> Value
     ) where Key == QueryStoreKey<QueryId, Variables> {
         self.init(
             observableStore: observableStore,
@@ -197,7 +200,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     public convenience init(
         observableStore: any ObservableStore<Key, QueryId, Value>,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+    queryOperation: @Sendable @escaping (Variables) async throws -> Value
     )
         where Key == QueryStoreKey<QueryId, Variables>,
         Value: HasValueVariables,
@@ -234,14 +237,14 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     private let observableStore: ObservableStoreType
     private let mergeStrategy: ModelStoreMergeStrategy!
     private let queryStrategy: QueryStrategy
-    private let keyFactory: (_ queryId: QueryId, _ variables: Variables) -> Key
+    private let keyFactory: @Sendable (_ queryId: QueryId, _ variables: Variables) -> Key
 
-    let preGet: (
+    let preGet: @Sendable (
         _ queryId: QueryId,
         _ variables: Variables
     ) async throws -> Void
 
-    private let get: (
+    private let get: @Sendable (
         _ key: Key,
         _ queryId: QueryId,
         _ variables: Variables,
@@ -304,7 +307,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
             // Any errors on prefetch can be propagated through the publisher.
             let key = keyFactory(queryId, variables)
             let result = StoreResult<Key, Value, Error>(key: key, failure: error)
-            _ = observableStore.subscriber
+            _ = await observableStore.subscriber
                 .receive(result)
         }
     }

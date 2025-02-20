@@ -7,7 +7,7 @@ import Combine
 import Foundation
 
 /// The default `Query` implementation.
-public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId: Hashable, Variables: Hashable {
+public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId: SyncHashable, Variables: SyncHashable, Value: Sendable {
     // MARK: - API
 
     public typealias ResultType = QueryResult<QueryId, Variables, Value, Error>
@@ -15,7 +15,7 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
     /// Create a `DefaultQuery` given a remote operation.
     /// - Parameters:
     ///   - queryOperation: a closure that performs the query operation, typically making a service call and returning the data.
-    public init(queryOperation: @escaping (Variables) async throws -> Value) {
+    public init(queryOperation: @Sendable @escaping (Variables) async throws -> Value) {
         self.queryOperation = queryOperation
     }
 
@@ -74,7 +74,7 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
 
     // MARK: - Variables
 
-    private let queryOperation: (Variables) async throws -> Value
+    private let queryOperation: @Sendable (Variables) async throws -> Value
     private let subject = PassthroughSubject<ResultType, Never>()
     private var taskCollateral: [QueryId: TaskCollateral] = [:]
     private var lastVariables: [QueryId: Variables] = [:]
