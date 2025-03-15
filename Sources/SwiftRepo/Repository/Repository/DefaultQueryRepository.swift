@@ -86,6 +86,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ///   - queryStrategy: The query strategy to use.
     ///   - valueVariablesFactory: a closure that converts the value into its associated variables
     ///   - keyFactory: a closure that converts the query ID and variables into a store key
+    @available(iOS 17, *)
     public init<Model, QueryValue>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
@@ -151,6 +152,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     ///   - mergeStrategy: Specifies how models are stored in the `modelStore`.
     ///   - queryStrategy: The query strategy to use.
     ///   - queryOperation: The operation to use to perform the actual query.
+    @available(iOS 17, *)
     public convenience init<Model>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,

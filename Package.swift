@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "SwiftRepo",
     platforms: [
-        .iOS("18.0"),
+        .iOS("16.0"),
         .macOS("15.0"),
     ],
     products: [
