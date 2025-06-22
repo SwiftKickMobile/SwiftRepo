@@ -49,11 +49,6 @@ class BasicContentViewModel: ObservableObject, Refreshable {
         // Publish loading state to view
         loadingController.state
             .assign(to: &$loadingState)
-
-        // Handle loaded errors
-        loadingController.state
-            .compactMap { $0.loadedIndispensableUIError as? DemoUIError}
-            .assign(to: &$error)
     }
 
     // MARK: - Refreshable

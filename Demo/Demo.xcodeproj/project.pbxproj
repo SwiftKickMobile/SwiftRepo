@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		224A73AB2D63A8B500EE3146 /* Core.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22CCDE222D2B7811008C5069 /* Core.framework */; };
 		22CCDE2A2D2B7811008C5069 /* Core.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22CCDE222D2B7811008C5069 /* Core.framework */; };
 		22CCDE2B2D2B7811008C5069 /* Core.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 22CCDE222D2B7811008C5069 /* Core.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		22CCDE3E2D2B781A008C5069 /* Repo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 22CCDE362D2B781A008C5069 /* Repo.framework */; };
@@ -236,6 +237,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				224A73AB2D63A8B500EE3146 /* Core.framework in Frameworks */,
 				22CCDE8A2D2B886F008C5069 /* SwiftRepo in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
