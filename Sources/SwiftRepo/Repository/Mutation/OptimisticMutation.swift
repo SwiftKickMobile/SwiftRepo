@@ -101,7 +101,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
     private let store: any Store<MutationId, Value>
     private var fallbackValue: [MutationId: Value] = [:]
     private var mutationCollaterals: [MutationId: MutationCollateral] = [:]
-    private let subject = PassthroughSubject<ResultType, Never>()
+    nonisolated private let subject = PassthroughSubject<ResultType, Never>()
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Remote mutation

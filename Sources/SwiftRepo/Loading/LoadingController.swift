@@ -225,7 +225,8 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
     @MainActor
     let resultSubject = PassthroughSubject<ResultType, Never>()
     /// This needs to be made lazy in order to be `nonisolated`.
-    private nonisolated lazy var cancellables = Set<AnyCancellable>()
+    @MainActor
+    private lazy var cancellables = Set<AnyCancellable>()
 
     @MainActor
     public let stateSubject = CurrentValueSubject<State, Never>(.loading(isHidden: true))

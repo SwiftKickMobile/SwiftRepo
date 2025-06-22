@@ -75,7 +75,7 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
     // MARK: - Variables
 
     private let queryOperation: (Variables) async throws -> Value
-    private let subject = PassthroughSubject<ResultType, Never>()
+    nonisolated private let subject = PassthroughSubject<ResultType, Never>()
     private var taskCollateral: [QueryId: TaskCollateral] = [:]
     private var lastVariables: [QueryId: Variables] = [:]
 

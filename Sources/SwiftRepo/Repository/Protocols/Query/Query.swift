@@ -283,7 +283,7 @@ private extension Query {
             // Then, set the new value to the observable store.
             try await storeSet(key, value)
             return value
-        } catch var error as AppError {
+        } catch var error as any AppError {
             // On error, apply the error intent
             error.intent = errorIntent
             throw error

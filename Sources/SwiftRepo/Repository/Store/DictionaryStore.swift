@@ -59,7 +59,7 @@ public final actor DictionaryStore<Key, Value>: Store where Key: Hashable {
 
     @MainActor
     private var store: [Key: TimestampedValue<Value>] = [:]
-    private let merge: Merge?
+    nonisolated private let merge: Merge?
 
     // MARK: - Accessing actor-isolated state
 
