@@ -6,7 +6,7 @@
 import Foundation
 
 /// A `Result` for queries that includes the associated query ID and variables. This is used for mapping results from queries to stores.
-public struct QueryResult<QueryId, Variables, Success, Failure> where QueryId: Hashable, Variables: Hashable, Failure: Error {
+public struct QueryResult<QueryId, Variables, Success, Failure>: Sendable where QueryId: Hashable, Variables: Hashable, Failure: Error, QueryId: Sendable, Variables: Sendable, Success: Sendable, Failure: Sendable {
     
     public let queryId: QueryId
     public let variables: Variables

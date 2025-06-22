@@ -3,7 +3,7 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Combine
+@preconcurrency import Combine
 import Foundation
 
 /// This base protocol exists purely for Mockingbird. For some reason, if these definitions live in `Mutation`, then Mockingbird mocks
@@ -12,13 +12,13 @@ import Foundation
 /// forces the order of the mocked generic types to be `<Variables, MutationId, Value>` rather than `<MutationId, Variables, Value>`.
 public protocol MutationBase {
     /// Mutation ID identifies a unique mutation for the purposes of optimistic updating, debouncing and providing ID-scoped publishers.
-    associatedtype MutationId: Hashable
+    associatedtype MutationId: Hashable & Sendable
 
     /// The mutation parameters.
-    associatedtype Variables: Hashable
+    associatedtype Variables: Hashable & Sendable
 
     /// The type of value being mutated.
-    associatedtype Value
+    associatedtype Value: Sendable
 
     /// The result type used by publishers.
     typealias ResultType = MutationResult<MutationId, Variables, Value, Error>
@@ -29,6 +29,7 @@ public protocol MutationBase {
 ///
 /// In a typical usage, a repository would perform a remote mutation through an
 /// instance of `Mutation`, which would in turn be responsible for making the service call.
+@MainActor
 public protocol Mutation<MutationId, Variables, Value>: MutationBase {
     /// Called to perform the mutation
     func mutate(id: MutationId, variables: Variables) async throws

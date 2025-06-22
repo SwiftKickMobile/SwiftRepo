@@ -3,45 +3,56 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import XCTest
+import Testing
+import Foundation
+import SwiftRepoCore
 @testable import SwiftRepo
 
-class DictionaryStoreTests: XCTestCase {
-    // MARK: - Tests
-
-    func test_mergingOperator_sumsValues() async {
-        let key = "key"
+@MainActor
+struct DictionaryStoreTests {
+    
+    @Test("Set and Get value")
+    func setGet() async throws {
         let store = makeStore()
-        do {
-            _ = await store.set(key: key, value: TestValue(value: 1))
-            let stored = await store.get(key: key)
-            XCTAssertEqual(stored?.value, 1)
-        }
-        do {
-            _ = await store.set(key: key, value: TestValue(value: 2))
-            let stored = await store.get(key: key)
-            XCTAssertEqual(stored?.value, 3)
-        }
-        do {
-            _ = await store.set(key: key, value: nil)
-            let stored = await store.get(key: key)
-            XCTAssertNil(stored)
-        }
+        let key = "key"
+        let value = TestValue(value: "value")
+        _ = store.set(key: key, value: value)
+        let result = store.get(key: key)
+        #expect(result == value)
+    }
+
+    @Test("Set and Get nil value")
+    func setGetNil() async throws {
+        let store = makeStore()
+        let key = "key"
+        let value = TestValue(value: "value")
+        _ = store.set(key: key, value: value)
+        _ = store.set(key: key, value: nil)
+        let result = store.get(key: key)
+        #expect(result == nil)
+    }
+
+    @Test("Set with merge operation")
+    func setMerge() async throws {
+        let store = makeStore()
+        let key = "key"
+        let value1 = TestValue(value: "value1")
+        let value2 = TestValue(value: "value2")
+        _ = store.set(key: key, value: value1)
+        _ = store.set(key: key, value: value2)
+        let result = store.get(key: key)
+        #expect(result == TestValue(value: "value1value2"))
     }
 
     // MARK: - Constants
 
-    // MARK: - Variables
-
-    // MARK: - Lifecycle
+    private struct TestValue: Codable, Equatable, Sendable {
+        let value: String
+    }
 
     // MARK: - Helpers
 
     private func makeStore() -> DictionaryStore<String, TestValue> {
         DictionaryStore { old, new in TestValue(value: old.value + new.value) }
     }
-}
-
-private struct TestValue {
-    var value: Int
 }

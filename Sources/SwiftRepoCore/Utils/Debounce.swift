@@ -5,7 +5,7 @@
 
 import Foundation
 
-public final actor Debounce<T> {
+public final actor Debounce<T: Sendable> {
     // MARK: - API
 
     public func send(_: T) async -> Bool {

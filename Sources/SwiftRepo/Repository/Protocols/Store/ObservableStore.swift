@@ -12,6 +12,7 @@ import SwiftRepoCore
 /// An `ObservableStore` is typically connected to an instace of `Query` where remote data would flow into the system as follows:
 ///
 ///     `[data access component] < ObservableStore < Query < [service query]`
+@MainActor
 public protocol ObservableStore<Key, PublishKey, Value>: Store {
 
     associatedtype Value
@@ -33,8 +34,7 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     /// publishers with the current value.
     /// - Parameter publishKey: The publish key, most typically the query ID.
     /// - Returns: a publisher that emits the sequence of values for the specified key.
-    @MainActor
-    func publisher(for publishKey: PublishKey) -> AnyPublisher<ValueResult, Never>
+    func publisher(for publishKey: PublishKey) async -> AnyPublisher<ValueResult, Never>
 
     /// Publishes results for all keys. Does not publish current values.
     var publisher: AnyPublisher<StoreResultType, Never> { get }
@@ -64,13 +64,11 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     /// Explicitly sets the current key. Store implementations must ignore this call if the given key does not already existin the store or if the key is already the current key.
     /// This primarily exists for use with `QueryStoreKey` and query logic. Making this call before performing a new query causes the new current value to be published, allowing
     /// views to display stored data matchin the new variables while the query is being performed (or if the data is fresh enough, the query need not be performed at all).
-    @MainActor
-    func set(currentKey key: Key)
+    func set(currentKey key: Key) async
 
     /// Returns all of the keys associated with the specified publish key.
     /// - Parameter publishKey: the publish key
     /// - Returns: all keys associated with the given publish key
-    @MainActor
     func keys(for publishKey: PublishKey) throws -> [Key]
 
     /// Add an equivalence mapping from one key to another that helps the observable store internally maintain uniqueness of store keys. This is primarily used with queries
@@ -78,7 +76,6 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     /// - Parameters:
     ///   - fromKey: the key that will be mapped to the `toKey`
     ///   - toKey: the key that the store uses as the canonical key.
-    @MainActor
     func addMapping(from fromKey: Key, to toKey: Key)
 
     /// Returns the canonical key used by the store for the given key.
@@ -86,15 +83,13 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
     /// - Returns: the canonical key
     /// There are a number of scenarios where keys are not unique and the store needs to keep track of canonical keys and their equivalents. Scenarios where keys
     /// aren't unique is when they contain paging variables or were added explicitly with `addMapping(from:to:)`
-    @MainActor
     func map(key: Key) -> Key
 
-    @MainActor
     /// Removes the specified key from the store if it is older than the specified time interval.
     /// - Parameters:
     ///   - key: the key to evict
     ///   - ifOlderThan: the threshold that designates a value as being old enough to evict
-    func evict(for key: Key, ifOlderThan: TimeInterval) throws
+    func evict(for key: Key, ifOlderThan: TimeInterval) async throws
 
     /// Iterates over all keys in the store associated with the given publish key and applies the specified optional mutation. If the value of the current key is mutated,
     /// then the mutated value is puslished. This primarily exists for use with `QueryStoreKey` and optimistic mutation since there may be multiple stored values
@@ -103,7 +98,7 @@ public protocol ObservableStore<Key, PublishKey, Value>: Store {
 }
 
 /// Enumerates the types of changes that may be published by the store.
-public enum ObservableStoreChange<Value> {
+public enum ObservableStoreChange<Value>: Sendable where Value: Sendable {
     /// Value is newly added
     case add(Value)
 
@@ -186,7 +181,7 @@ public extension ObservableStore {
     /// Clears keys associated with a given publish key.
     /// - Parameter publishKey: the publish key to clear
     func clear(publishKey: PublishKey) async throws {
-        for key in try await keys(for: publishKey) {
+        for key in try keys(for: publishKey) {
             try await set(key: key, value: nil)
         }
     }

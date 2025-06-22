@@ -4,20 +4,20 @@
 //
 
 import Foundation
-import Combine
+@preconcurrency import Combine
 import SwiftRepoCore
 
 /// A state machine for loading, loaded, error and empty states.
-public final actor LoadingController<DataType> where DataType: Emptyable {
+@MainActor
+public final class LoadingController<DataType: Emptyable & Sendable> {
 
     // MARK: - API
 
     /// Publishes the loading state on the main actor.
-    @MainActor
     public private(set) lazy var state: AnyPublisher<State, Never> = stateSubject.eraseToAnyPublisher()
 
     /// The data loading states.
-    public enum State: CustomStringConvertible {
+    public enum State: CustomStringConvertible, Sendable {
         /// An initial loading state when there is no data to display. Components are responsible for displaying their own UI,
         /// if they choose to do so, when updating after initial data has already been loaded. For example, a list view may display
         /// a "pull-to-refresh" UI until the next state transition.
@@ -87,7 +87,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
 
     /// Called to inform the controller that data is being loaded or updated. Calling this at the appropriate time is essential to
     /// the behavior of the state machine.
-    @MainActor
     public func loading() {
         switch loadState {
         case .none:
@@ -110,7 +109,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
     }
 
     /// Sets the result of loading or updating the data.
-    @MainActor
     public func set(result: ResultType) {
         let newState = result.asLoadState(
             currentLoadState: loadState,
@@ -129,7 +127,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
     }
 
     /// A subscriber than can receive the published results of loading or updating the data.
-    @MainActor
     public private(set) lazy var resultSubscriber: AnySubscriber<ResultType, Never> = {
         resultSubject
             // TODO: this is a liability, but embedding a main actor task breaks the synchronous data pipeline. Probably need to move to `AsyncSequence`
@@ -139,7 +136,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
     }()
 
     /// Reset the LoadingController to the default state, so that a fresh load can be triggered. Cancels any active task.
-    @MainActor
     public func reset() {
         task?.cancel()
         task = nil
@@ -154,7 +150,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
     ///   - loadingBehavior: the indefinite loading behavior, if any (see `IndefiniteController`.
     ///   - data: the initial data, if any. Supplying initial data, such as through pre-fetching or caching,
     ///   allows content to be displayed synchronously for maximum UI responsiveness.
-    @MainActor
     public init(
         loadingBehavior: LoadingBehavior? = nil,
         data: DataType? = nil
@@ -218,30 +213,21 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
 
     // MARK: - Variables
 
-    @MainActor
     private var indefiniteController: IndefiniteController?
-    @MainActor
     private var isLoadingHidden = true
-    @MainActor
     let resultSubject = PassthroughSubject<ResultType, Never>()
     /// This needs to be made lazy in order to be `nonisolated`.
-    @MainActor
     private lazy var cancellables = Set<AnyCancellable>()
 
-    @MainActor
     public let stateSubject = CurrentValueSubject<State, Never>(.loading(isHidden: true))
 
-    @MainActor
     private var task: TaskType? {
         didSet {
             oldValue?.cancel()
         }
     }
 
-    @MainActor
     private var loadState: LoadState = .none
-
-    @MainActor
 
     private let loadingBehavior: LoadingBehavior?
 
@@ -249,7 +235,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
 
     // I really don't see how breaking this state machine logic into
     // smaller chunks improves anything: swiftlint:disable cyclomatic_complexity
-    @MainActor
     private func set(state: LoadState) {
         let oldValue = loadState
         loadState = state
@@ -297,7 +282,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
     // MARK: - Loading the data
 
     // Legacy support for the old task-based loading.
-    @MainActor
     private func internalLoad(task: TaskType) async {
         self.task = task
         loading()
@@ -324,7 +308,6 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
         }
     }
 
-    @MainActor
     private func installIndefiniteController() {
         if let loadingBehavior = loadingBehavior {
             indefiniteController = IndefiniteController(
@@ -339,27 +322,22 @@ public final actor LoadingController<DataType> where DataType: Emptyable {
 // MARK: Mutating actor isolated state
 
 extension LoadingController {
-    @MainActor
     private func actorSet(task: TaskType?) {
         self.task = task
     }
 
-    @MainActor
     private func actorSet(isLoadingHidden: Bool) async {
         self.isLoadingHidden = isLoadingHidden
     }
 
-    @MainActor
     private func actorSet(loadState: LoadState) {
         self.loadState = loadState
     }
 
-    @MainActor
     private func actorStateSubjectSend(state: State) {
         stateSubject.send(state)
     }
 
-    @MainActor
     private func actorSet(data: DataType) {
         actorSet(loadState: .loaded(data: data, error: nil))
         actorStateSubjectSend(state: .loaded(data, nil, isUpdating: false))
@@ -399,8 +377,7 @@ extension LoadingController.State: Equatable where DataType: Equatable {
     }
 }
 
-private extension Result where Success: Emptyable {
-    @MainActor
+private extension Result where Success: Emptyable & Sendable {
     func asLoadState(
         currentLoadState: LoadingController<Success>.LoadState,
         loadedErrorsToEmpty: Bool = false

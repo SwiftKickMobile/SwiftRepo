@@ -11,6 +11,7 @@ import SwiftRepoCore
 ///
 /// Intended to abstract away the lower-level `Query` and `ObservableStore` protocols into
 /// a single, simplified interface. An example use case is formation tracker, where the variables are business entity UUID and time zone.
+@MainActor
 public protocol VariableQueryRepository<Variables, Value>: HasValueResult {
     
     associatedtype Variables: Hashable
@@ -24,7 +25,6 @@ public protocol VariableQueryRepository<Variables, Value>: HasValueResult {
     ///   - willGet: a callback that is invoked if the query is performed.
     ///
     ///   When using a loading controller, the function `loadingController.loading` should be passed to the `willGet` parameter.
-    @MainActor
     func get(
         variables: Variables,
         errorIntent: ErrorIntent,
@@ -38,8 +38,7 @@ public protocol VariableQueryRepository<Variables, Value>: HasValueResult {
     ///
     /// Values will be published on the main queue, so there is no need to every use `receive(on: DispatchQueue.main)`
     /// and doing so will break the synchronous data pipieline needed for views to appear fully formed.
-    @MainActor
-    func publisher(for variables: Variables) -> AnyPublisher<ValueResult, Never>
+    func publisher(for variables: Variables) async -> AnyPublisher<ValueResult, Never>
 
     /// Prefetches for the given variables.
     /// - Parameters:
@@ -50,14 +49,18 @@ public protocol VariableQueryRepository<Variables, Value>: HasValueResult {
 
 public extension VariableQueryRepository {
     
-    @MainActor
     func get(
         variables: Variables,
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
         willGet: @escaping Query.WillGet
     ) async {
-        await get(variables: variables, errorIntent: errorIntent, queryStrategy: queryStrategy, willGet: willGet)
+        await get(
+            variables: variables,
+            errorIntent: errorIntent,
+            queryStrategy: queryStrategy,
+            willGet: willGet
+        )
     }
     
     func prefetch(variables: Variables, errorIntent: ErrorIntent = .dispensable) async {

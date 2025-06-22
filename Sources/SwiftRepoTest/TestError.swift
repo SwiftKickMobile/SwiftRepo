@@ -27,7 +27,7 @@ public struct TestError: AppError, Equatable {
     
     // MARK: - Constants
     
-    public enum Category {
+    public enum Category: Sendable {
         case failure
     }
     

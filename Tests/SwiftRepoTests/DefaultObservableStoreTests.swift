@@ -3,15 +3,15 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Combine
+@preconcurrency import Combine
+import Foundation
+import Testing
 import SwiftRepoCore
 import SwiftRepoTest
-import XCTest
 @testable import SwiftRepo
 
-class DefaultObservableStoreTests: XCTestCase {
-
-    // MARK: - API
+@MainActor
+struct DefaultObservableStoreTests {
 
     // MARK: - Constants
 
@@ -25,35 +25,34 @@ class DefaultObservableStoreTests: XCTestCase {
     private typealias ResultType = Result<String, TestError>
     private typealias StoreResultType = StoreResult<String, String, Error>
 
-    // MARK: - Variables
-
-    // MARK: - Lifecycle
-
     // MARK: - Tests
 
-    func testGet() async throws {
+    @Test("Get operations")
+    func get() async throws {
         let key = "1"
         let valueA = "a"
         let valueB = "b"
         let store = DefaultObservableStore<String, String, String>(store: DictionaryStore())
         try await store.set(key: key, value: valueA)
         let getA = try await store.get(key: key)
-        XCTAssertEqual(getA, valueA)
+        #expect(getA == valueA)
         try await store.set(key: key, value: valueB)
         let getB = try await store.get(key: key)
-        XCTAssertEqual(getB, valueB)
+        #expect(getB == valueB)
     }
 
-    func testReset() async throws {
+    @Test("Reset operations")
+    func reset() async throws {
         let key = "1"
         let store = DefaultObservableStore<String, String, String>(store: DictionaryStore())
         try await store.set(key: key, value: key)
         try await store.clear()
         let get = try await store.get(key: key)
-        XCTAssertNil(get)
+        #expect(get == nil)
     }
 
-    func testKeyPathSubscriber() async throws {
+    @Test("KeyPath subscriber")
+    func keyPathSubscriber() async throws {
         let key = "1"
         let item = Item(id: key)
         let store = DefaultObservableStore<String, String, Item>(store: DictionaryStore())
@@ -61,10 +60,11 @@ class DefaultObservableStoreTests: XCTestCase {
         _ = subscriber.receive(item)
         try await Task.sleep(for: .seconds(0.1))
         let get = try await store.get(key: key)
-        XCTAssertEqual(get, item)
+        #expect(get == item)
     }
 
-    func testSubscriber() async throws {
+    @Test("Subscriber operations")
+    func subscriber() async throws {
         let key1 = "key1"
         let key2 = "key2"
         let idSuccess1 = StoreResultType(key: key1, success: key1)
@@ -81,13 +81,14 @@ class DefaultObservableStoreTests: XCTestCase {
         _ = store.subscriber.receive(idSuccess2)
         try await Task.sleep(for: .seconds(0.1))
         let get = try await store.get(key: key1)
-        XCTAssertEqual(get, key1)
+        #expect(get == key1)
         let success1 = ResultType.success(key1)
         let failure1 = ResultType.failure(TestError(category: .failure))
-        assertPublished([success1, failure1], spy: spy)
+        try await spy.waitForValues([success1, failure1])
     }
 
-    func testPublisher() async throws {
+    @Test("Publisher operations")
+    func publisher() async throws {
         let key = "1"
         let valueA = "a"
         let valueB = "b"
@@ -102,11 +103,12 @@ class DefaultObservableStoreTests: XCTestCase {
         let successA = ResultType.success(valueA)
         let successC = ResultType.success(valueC)
         try await Task.sleep(for: .seconds(0.025))
-        assertPublished([successA, successC], spy: spy1)
-        assertPublished([successA, successC], spy: spy2)
+        try await spy1.waitForValues([successA, successC])
+        try await spy2.waitForValues([successA, successC])
     }
 
-    func testChangePublisher() async throws {
+    @Test("Change publisher operations")
+    func changePublisher() async throws {
         let key = "1"
         let valueA = "a"
         let valueB = "b"
@@ -117,17 +119,15 @@ class DefaultObservableStoreTests: XCTestCase {
         try await store.set(key: "asdasd", value: valueB)
         try await store.set(key: key, value: valueC)
         try await store.set(key: key, value: nil)
-        assertPublished(
-            [
-                .add(valueA),
-                .update(valueC, previous: valueA),
-                .delete(valueC),
-            ],
-            spy: spy
-        )
+        try await spy.waitForValues([
+            .add(valueA),
+            .update(valueC, previous: valueA),
+            .delete(valueC),
+        ])
     }
 
-    func test_setStore_currentKeyIsCorrect() async throws {
+    @Test("Set store current key is correct")
+    func setStoreCurrentKeyIsCorrect() async throws {
         let keyA = "keyA"
         let keyB = "keyB"
         let publishKey = "publishKey"
@@ -135,16 +135,17 @@ class DefaultObservableStoreTests: XCTestCase {
         do {
             try await store.set(key: keyA, value: keyA)
             let currentKey = await store.currentKey(for: publishKey)
-            XCTAssertEqual(currentKey, keyA)
+            #expect(currentKey == keyA)
         }
         do {
             try await store.set(key: keyB, value: keyB)
             let currentKey = await store.currentKey(for: publishKey)
-            XCTAssertEqual(currentKey, keyB)
+            #expect(currentKey == keyB)
         }
     }
 
-    func test_keysForPublishKey_returnsKeys() async throws {
+    @Test("Keys for publish key returns keys")
+    func keysForPublishKeyReturnsKeys() async throws {
         let key1A = "key1A"
         let key1B = "key1B"
         let key2 = "key2"
@@ -160,11 +161,12 @@ class DefaultObservableStoreTests: XCTestCase {
         try await store.set(key: key1A, value: key1A)
         try await store.set(key: key1B, value: key1B)
         try await store.set(key: key2, value: key2)
-        let keys = try await store.keys(for: publishKey1)
-        XCTAssertEqual(keys.sorted(), [key1A, key1B].sorted())
+        let keys = try store.keys(for: publishKey1)
+        #expect(keys.sorted() == [key1A, key1B].sorted())
     }
 
-    func test_clearForPublishKey_clearsKeys() async throws {
+    @Test("Clear for publish key clears keys")
+    func clearForPublishKeyClearsKeys() async throws {
         let key1A = "key1A"
         let key1B = "key1B"
         let key2 = "key2"
@@ -184,12 +186,13 @@ class DefaultObservableStoreTests: XCTestCase {
         let value1A = try await store.get(key: key1A)
         let value1B = try await store.get(key: key1B)
         let value2 = try await store.get(key: key2)
-        XCTAssertNil(value1A)
-        XCTAssertNil(value1B)
-        XCTAssertEqual(value2, key2)
+        #expect(value1A == nil)
+        #expect(value1B == nil)
+        #expect(value2 == key2)
     }
 
-    func test_setCurrentKey_publishesValueAssociatedWithTheNewCurrentKey() async throws {
+    @Test("Set current key publishes value associated with the new current key")
+    func setCurrentKeyPublishesValueAssociatedWithTheNewCurrentKey() async throws {
         let keyA1 = "keyA1"
         let keyA2 = "keyA2"
         let keyB1 = "keyB1"
@@ -213,7 +216,7 @@ class DefaultObservableStoreTests: XCTestCase {
             // This should have no effect since this key is not in the store
             await store.set(currentKey: keyA2)
             try await Task.sleep(for: .seconds(0.025))
-            assertPublished([successA1, successA1], spy: spy)
+            try await spy.waitForValues([successA1, successA1])
         }
         do {
             try await store.set(key: keyA2, value: keyA2)
@@ -221,13 +224,14 @@ class DefaultObservableStoreTests: XCTestCase {
             await store.set(currentKey: keyA1)
             let currentKey2 = await store.currentKey(for: publishKeyA)
             try await Task.sleep(for: .seconds(0.025))
-            XCTAssertEqual(currentKey1, keyA2)
-            XCTAssertEqual(currentKey2, keyA1)
-            assertPublished([successA1, successA1, successA2, successA1], spy: spy)
+            #expect(currentKey1 == keyA2)
+            #expect(currentKey2 == keyA1)
+            try await spy.waitForValues([successA1, successA1, successA2, successA1])
         }
     }
 
-    func test_mutateStore_updatesAllCachedValues() async throws {
+    @Test("Mutate store updates all cached values")
+    func mutateStoreUpdatesAllCachedValues() async throws {
         let keyA1 = "keyA1"
         let keyA2 = "keyA2"
         let keyB1 = "keyB1"
@@ -252,34 +256,36 @@ class DefaultObservableStoreTests: XCTestCase {
         try await store.mutate(publishKey: publishKeyA) { _, value in
             value + value
         }
-        assertPublished([successA1, successA2, successA2A2], spy: spyA)
-        assertPublished([successB1], spy: spyB)
+        try await spyA.waitForValues([successA1, successA2, successA2A2])
+        try await spyB.waitForValues([successB1])
         let valueA1 = try await store.get(key: keyA1)
-        XCTAssertEqual(valueA1, keyA1 + keyA1)
+        #expect(valueA1 == keyA1 + keyA1)
     }
 
-    func test_newValueSubscriber_acceptsNewerValue() async throws {
+    @Test("New value subscriber accepts newer value")
+    func newValueSubscriberAcceptsNewerValue() async throws {
         let id = "1"
         let item = Item(id: id)
         let store = DefaultObservableStore<String, String, Item>(store: DictionaryStore())
         try await store.set(key: id, value: item)
         let result = try await store.get(key: id)
-        XCTAssertEqual(result, item)
+        #expect(result == item)
         let newerItem = Item(id: id, value: "different", updatedAt: Date())
         let publisher = Just(newerItem)
         publisher.receive(subscriber: store.newValueSubscriber(keyField: \.id))
         try await Task.sleep(for: .seconds(0.1))
         let newResult = try await store.get(key: id)
-        XCTAssertEqual(newResult, newerItem)
+        #expect(newResult == newerItem)
     }
 
-    func test_newValueSubscriber_rejectsOlderValue() async throws {
+    @Test("New value subscriber rejects older value")
+    func newValueSubscriberRejectsOlderValue() async throws {
         let id = "1"
         let item = Item(id: id, updatedAt: Date())
         let store = DefaultObservableStore<String, String, Item>(store: DictionaryStore())
         try await store.set(key: id, value: item)
         let result = try await store.get(key: id)
-        XCTAssertEqual(result, item)
+        #expect(result == item)
         // Same age item should not be placed in the store
         do {
             var otherItem = item
@@ -288,7 +294,7 @@ class DefaultObservableStoreTests: XCTestCase {
             publisher.receive(subscriber: store.newValueSubscriber(keyField: \.id))
             try await Task.sleep(for: .seconds(0.1))
             let result = try await store.get(key: id)
-            XCTAssertEqual(result, item)
+            #expect(result == item)
         }
         // Older item should not be placed in the store
         do {
@@ -299,10 +305,9 @@ class DefaultObservableStoreTests: XCTestCase {
             publisher.receive(subscriber: store.newValueSubscriber(keyField: \.id))
             try await Task.sleep(for: .seconds(0.1))
             let result = try await store.get(key: id)
-            XCTAssertEqual(result, item)
+            #expect(result == item)
         }
     }
-
 }
 
 private extension Publisher where Output == Result<String, Error>, Failure == Never {

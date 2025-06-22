@@ -3,11 +3,12 @@
 //
 
 import Swift
-import XCTest
+import Testing
 import SwiftRepoTest
 @testable import SwiftRepo
 
-class IndefiniteControllerRandomTests: XCTestCase {
+@MainActor
+struct IndefiniteControllerRandomTests {
 
     // MARK: - Constants
 
@@ -15,29 +16,25 @@ class IndefiniteControllerRandomTests: XCTestCase {
     private typealias Step = IndefiniteControllerTests.Step
     private let minRunTime: Duration = .seconds(0.1)
     private let delay: Duration = .seconds(0.1)
-    private var isRunningChanged: [Bool] = []
-
-    // MARK: - Variables
-
-    private var controller: IndefiniteController!
 
     // MARK: - Tests
 
     /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
     /// We must keep this commented out when checking in changes.
-//    func test_randomizer() async throws {
+//    @Test("Randomizer")
+//    func randomizer() async throws {
 //        try await performRandom(raceConditions: false)
 //    }
 
     /// WARNING: Use this to iterate over random API calls to generate test cases and check for assertion failures.
     /// We must keep this commented out when checking in changes.
-//    func test_randomizerWithRaceConditions() async throws {
+//    @Test("Randomizer with race conditions")
+//    func randomizerWithRaceConditions() async throws {
 //        try await performRandom(raceConditions: true)
 //    }
 
     private func performRandom(raceConditions: Bool) async throws {
         for testIndex in 0 ..< 1000 {
-            try await setUp()
             var random = RandomNumberGeneratorWithSeed(seed: UInt64(testIndex))
             let stepCount: UInt = 3 + random.next(upperBound: 5)
             var cummulativeDelay: Duration = .zero
@@ -53,46 +50,49 @@ class IndefiniteControllerRandomTests: XCTestCase {
                 delayedSteps.append(DelayedStep(step: step, delay: cummulativeDelay))
             }
             print("randomSeed=\(testIndex), \(delayedSteps.description)")
-            isRunningChanged = []
             try await perform(delayedSteps: delayedSteps, expectedIsRunningChanges: nil)
         }
-    }
-
-    // MARK: - Lifecycle
-
-    @MainActor
-    override func setUp() {
-        super.setUp()
-        isRunningChanged = []
-        controller = IndefiniteController(delay: delay, minimumDuration: minRunTime, delegate: self)
     }
 
     // MARK: - Helpers
 
     private func perform(delayedSteps: [DelayedStep], expectedIsRunningChanges: [Bool]?) async throws {
+        actor ResultCollector {
+            private var isRunningChanged: [Bool] = []
+            
+            func append(_ value: Bool) {
+                isRunningChanged.append(value)
+            }
+            
+            func getResults() -> [Bool] {
+                isRunningChanged
+            }
+        }
+        
+        let resultCollector = ResultCollector()
+        let controller = IndefiniteController(delay: delay, minimumDuration: minRunTime) { didExceedDelay in
+            Task { await resultCollector.append(didExceedDelay) }
+        }
+        
         for delayedStep in delayedSteps {
-            Task.detached(priority: .high) {
+            Task.detached(priority: .high) { @Sendable in
                 try await Task.sleep(for: delayedStep.delay)
                 switch delayedStep.step {
-                case .reset: await self.controller.prepareForReuse()
-                case .start: await self.controller.start()
-                case .stop: await self.controller.stop()
-                case .stopSync: await self.isRunningChanged.append(!self.controller.tryStoppingSynchronously())
+                case .reset: await controller.prepareForReuse()
+                case .start: await controller.start()
+                case .stop: await controller.stop()
+                case .stopSync: await resultCollector.append(!controller.tryStoppingSynchronously())
                 }
             }
         }
         let maxDelay = delayedSteps.map(\.delay).max() ?? .zero
         try await Task.sleep(for: maxDelay + minRunTime + .seconds(0.5))
+        
+        let isRunningChanged = await resultCollector.getResults()
         if let expectedIsRunningChanges = expectedIsRunningChanges {
-            XCTAssertEqual(expectedIsRunningChanges, isRunningChanged)
+            #expect(expectedIsRunningChanges == isRunningChanged)
         } else {
             print("isRunningChanged=\(isRunningChanged)")
         }
-    }
-}
-
-extension IndefiniteControllerRandomTests: IndefiniteControllerDelegate {
-    func didExceedDelayChanged(_ didExceedDelay: Bool) {
-        isRunningChanged.append(didExceedDelay)
     }
 }

@@ -19,8 +19,7 @@ import SwiftRepoCore
 ///  can be observed via the `QueryRepository` publisher. This publisher is essential for driving loading and error states and can publish
 ///  any additional metadata contained in the query response. However, if there is no such data, the type can be `Unused`. The "Database"
 ///  approach is typically used when models are value types stored in a database and values are fetched via database queries, e.g. SwiftData.
-public final class DefaultQueryRepository<QueryId, Variables, Key, Value>: QueryRepository
-where QueryId: Hashable, Variables: Hashable, Key: Hashable {
+public final class DefaultQueryRepository<QueryId: Hashable & Sendable, Variables: Hashable & Sendable, Key: Hashable & Sendable, Value: Sendable>: QueryRepository {
 
     // MARK: - API
 
@@ -132,7 +131,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     public convenience init(
         observableStore: ObservableStoreType,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @escaping @Sendable (Variables) async throws -> Value
     ) where Key == QueryId {
         self.init(
             observableStore: observableStore,
@@ -156,7 +155,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         modelStore: any Store<Model.Key, Model>,
         mergeStrategy: ModelStoreMergeStrategy,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @escaping @Sendable (Variables) async throws -> Value
     ) where Model: StoreModel, Value: ModelResponse, Model == Value.Model, Key == QueryId, Value == Value.Value {
         self.init(
             observableStore: observableStore,
@@ -177,7 +176,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     public convenience init(
         observableStore: any ObservableStore<Key, QueryId, Value>,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @escaping @Sendable (Variables) async throws -> Value
     ) where Key == QueryStoreKey<QueryId, Variables> {
         self.init(
             observableStore: observableStore,
@@ -197,7 +196,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
     public convenience init(
         observableStore: any ObservableStore<Key, QueryId, Value>,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @escaping @Sendable (Variables) async throws -> Value
     )
         where Key == QueryStoreKey<QueryId, Variables>,
         Value: HasValueVariables,
@@ -252,7 +251,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
 
     // MARK: - QueryRepository
 
-    @MainActor
+    @AsyncLocked
     public func get(
         queryId: QueryId,
         variables: Variables,
@@ -264,7 +263,7 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         do {
             try await get(key, queryId, variables, errorIntent, queryStrategy ?? self.queryStrategy, willGet)
         } catch let error as QueryError where error == .cancelled {
-            // Don't publish cancellation errors – we have no use case for needing to know about this
+            // Don't publish cancellation errors – we have no use case for needing to know about this
             // and including them would force view models to remember to ignore cancellation errors.
         } catch {
             let result = StoreResult<Key, Value, Error>(key: key, failure: error)
@@ -273,11 +272,13 @@ where QueryId: Hashable, Variables: Hashable, Key: Hashable {
         }
     }
 
-    public func publisher(for queryId: QueryId, setCurrent key: Key) -> AnyPublisher<ValueResult, Never> {
-        observableStore.set(currentKey: key)
-        return observableStore.publisher(for: queryId)
+    @AsyncLocked
+    public func publisher(for queryId: QueryId, setCurrent key: Key) async -> AnyPublisher<ValueResult, Never> {
+        await observableStore.set(currentKey: key)
+        return await observableStore.publisher(for: queryId)
     }
 
+    @AsyncLocked
     public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
         await get(
             queryId: queryId,

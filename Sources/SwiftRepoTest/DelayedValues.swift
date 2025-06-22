@@ -4,19 +4,19 @@
 
 import Foundation
 
-public actor DelayedValues<T> {
+public actor DelayedValues<T: Sendable> {
     // MARK: - API
 
     /// A data structure representing a delayed value or error.
     public struct Value: Sendable {
         public var delay: TimeInterval
-        public var result: Result<T, Error>
+        public var result: Result<T, any Error>
 
         public static func makeValue(_ value: T, delay: TimeInterval = 0) -> Value {
             Value(value: value, delay: delay)
         }
 
-        public static func makeError(_ error: Error, delay: TimeInterval = 0) -> Value {
+        public static func makeError(_ error: any Error, delay: TimeInterval = 0) -> Value {
             Value(error: error, delay: delay)
         }
 
@@ -25,7 +25,7 @@ public actor DelayedValues<T> {
             result = .success(value)
         }
 
-        public init(error: Error, delay: TimeInterval = 0) {
+        public init(error: any Error, delay: TimeInterval = 0) {
             self.delay = delay
             result = .failure(error)
         }

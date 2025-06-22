@@ -260,8 +260,8 @@ public final actor IndefiniteController {
 
     @MainActor
     private func logInfo(message: String) {
-        let time = self.startTime.map { referenceInstance.duration(to: $0) }
-        let timeFormat: Duration.TimeFormatStyle = .time(pattern: .minuteSecond(padMinuteToLength: 2, fractionalSecondsLength: 3))
+//        let time = self.startTime.map { referenceInstance.duration(to: $0) }
+//        let timeFormat: Duration.TimeFormatStyle = .time(pattern: .minuteSecond(padMinuteToLength: 2, fractionalSecondsLength: 3))
 //        logger.info("\(message): state=\(self.state.rawValue), startTime=\(time?.formatted(timeFormat) ?? "[none]"), startID=\(self.startID?.uuidString ?? "[none]")")
     }
 }

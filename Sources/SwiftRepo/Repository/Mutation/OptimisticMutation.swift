@@ -3,7 +3,7 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Combine
+@preconcurrency import Combine
 import Foundation
 import SwiftRepoCore
 
@@ -13,10 +13,10 @@ import SwiftRepoCore
 ///
 /// If the remote mutation fails and there are no pending remote mutations, then the last known valid value is restored, potentially reverting optimistic local mutations.
 /// A valid value is defined as either the original value from the last idle period or the most recent success result from a remote mutation.
-public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
-    where MutationId: Hashable, Variables: Hashable {
+public final class OptimisticMutation<MutationId: Hashable & Sendable, Variables: Hashable & Sendable, Value: Sendable>: Mutation {
     // MARK: - API
 
+    @AsyncLocked
     public func mutate(id: MutationId, variables: Variables) async throws {
         guard let value = try await store.get(key: id) else {
             assertionFailure()
@@ -40,7 +40,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
         }
     }
 
-    public nonisolated func publisher(for id: MutationId) -> AnyPublisher<ResultType, Never> {
+    public func publisher(for id: MutationId) -> AnyPublisher<ResultType, Never> {
         subject
             .filter { $0.mutationId == id }
             .eraseToAnyPublisher()
@@ -52,11 +52,11 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
     ///   - store: The store to provide and receive values.
     ///   - localMutation: A closure that performs an optimistic local mutation of the current value in the store and the given mutation variables.
     ///   - remoteMutation: A closure that performs the remote mutation using the given mutation variables.
-    public init(
+    public convenience init(
         debounceInterval: TimeInterval,
         store: any Store<MutationId, Value>,
-        localMutation: @escaping (_ variables: Variables, _ value: Value) -> Value,
-        remoteMutation: @escaping (_ variables: Variables, _ value: Value) async throws -> Void
+        localMutation: @escaping @Sendable (_ variables: Variables, _ value: Value) -> Value,
+        remoteMutation: @escaping @Sendable (_ variables: Variables, _ value: Value) async throws -> Void
     ) {
         self.init(
             debounceInterval: debounceInterval,
@@ -76,8 +76,8 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
     public init(
         debounceInterval: TimeInterval,
         store: any Store<MutationId, Value>,
-        localMutation: @escaping (Variables, Value) -> Value,
-        remoteMutation: @escaping (Variables, Value) async throws -> Value
+        localMutation: @escaping @Sendable (Variables, Value) -> Value,
+        remoteMutation: @escaping @Sendable (Variables, Value) async throws -> Value
     ) {
         self.debounceInterval = debounceInterval
         self.store = store
@@ -87,7 +87,7 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
 
     // MARK: - Constants
 
-    private struct MutationCollateral {
+    private struct MutationCollateral: Sendable {
         var requestId: UUID
         var fallbackValue: Value
         let debounce: Debounce<(Variables, Value)>
@@ -96,16 +96,17 @@ public final actor OptimisticMutation<MutationId, Variables, Value>: Mutation
     // MARK: - Variables
 
     private let debounceInterval: TimeInterval
-    private let localMutation: (Variables, Value) -> Value
-    private let remoteMutation: (Variables, Value) async throws -> Value
+    private let localMutation: @Sendable (Variables, Value) -> Value
+    private let remoteMutation: @Sendable (Variables, Value) async throws -> Value
     private let store: any Store<MutationId, Value>
     private var fallbackValue: [MutationId: Value] = [:]
     private var mutationCollaterals: [MutationId: MutationCollateral] = [:]
-    nonisolated private let subject = PassthroughSubject<ResultType, Never>()
+    private let subject = PassthroughSubject<ResultType, Never>()
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Remote mutation
 
+    @AsyncLocked
     private func performRemoteMutation(id: MutationId, requestId: UUID, variables: Variables, newValue: Value) async throws {
         do {
             let value = try await remoteMutation(variables, newValue)

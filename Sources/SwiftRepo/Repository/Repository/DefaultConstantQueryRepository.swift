@@ -8,8 +8,7 @@ import Foundation
 import SwiftRepoCore
 
 /// The default `ConstantQueryRepository` implementation.
-public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQueryRepository
-    where Variables: Hashable {
+public final class DefaultConstantQueryRepository<Variables: Hashable & Sendable, Value: Sendable>: ConstantQueryRepository {
     // MARK: - API
 
     public typealias QueryType = any Query<Variables, Variables, Value>
@@ -43,7 +42,7 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
         variables: Variables,
         observableStore: ObservableStoreType,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @escaping @Sendable (Variables) async throws -> Value
     ) {
         self.init(
             variables: variables,
@@ -62,11 +61,11 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
 
     // MARK: - ConstantQueryRepository
 
-    @MainActor
+    @AsyncLocked
     public func get(
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy?,
-        willGet: @escaping () async -> Void
+        willGet: @escaping @MainActor () async -> Void
     ) async {
         await repository.get(
             queryId: variables,
@@ -77,11 +76,12 @@ public final class DefaultConstantQueryRepository<Variables, Value>: ConstantQue
         )
     }
 
-    @MainActor
-    public func publisher() -> AnyPublisher<ValueResult, Never> {
-        repository.publisher(for: variables, setCurrent: variables)
+    @AsyncLocked
+    public func publisher() async -> AnyPublisher<ValueResult, Never> {
+        await repository.publisher(for: variables, setCurrent: variables)
     }
 
+    @AsyncLocked
     public func prefetch(errorIntent: ErrorIntent = .dispensable) async {
         await repository.prefetch(queryId: variables, variables: variables, errorIntent: errorIntent)
     }

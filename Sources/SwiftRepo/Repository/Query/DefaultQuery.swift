@@ -3,11 +3,12 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Combine
+@preconcurrency import Combine
 import Foundation
 
 /// The default `Query` implementation.
-public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId: Hashable, Variables: Hashable {
+@MainActor
+public final class DefaultQuery<QueryId: Hashable & Sendable, Variables: Hashable & Sendable, Value: Sendable>: Query {
     // MARK: - API
 
     public typealias ResultType = QueryResult<QueryId, Variables, Value, Error>
@@ -15,7 +16,7 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
     /// Create a `DefaultQuery` given a remote operation.
     /// - Parameters:
     ///   - queryOperation: a closure that performs the query operation, typically making a service call and returning the data.
-    public init(queryOperation: @escaping (Variables) async throws -> Value) {
+    public init(queryOperation: @escaping @Sendable (Variables) async throws -> Value) {
         self.queryOperation = queryOperation
     }
 
@@ -37,10 +38,11 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
         taskCollateral[id] = nil
     }
 
-    public private(set) nonisolated lazy var publisher: AnyPublisher<ResultType, Never> = subject
-        .eraseToAnyPublisher()
+    public var publisher: AnyPublisher<ResultType, Never> {
+        subject.eraseToAnyPublisher()
+    }
 
-    public nonisolated func publisher(for id: QueryId) -> AnyPublisher<ResultType, Never> {
+    public func publisher(for id: QueryId) -> AnyPublisher<ResultType, Never> {
         subject
             .filter { $0.queryId == id }
             .eraseToAnyPublisher()
@@ -59,7 +61,7 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
     #endif
 
     /// A structure for keeping track of data required to perform a `get(variables:)` task.
-    private struct TaskCollateral {
+    private struct TaskCollateral: Sendable {
         var variables: Variables
         var task: Task<Void, Never>
         var continuations: [ContinuationType]
@@ -74,8 +76,8 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
 
     // MARK: - Variables
 
-    private let queryOperation: (Variables) async throws -> Value
-    nonisolated private let subject = PassthroughSubject<ResultType, Never>()
+    private let queryOperation: @Sendable (Variables) async throws -> Value
+    private let subject = PassthroughSubject<ResultType, Never>()
     private var taskCollateral: [QueryId: TaskCollateral] = [:]
     private var lastVariables: [QueryId: Variables] = [:]
 
@@ -92,13 +94,13 @@ public final actor DefaultQuery<QueryId, Variables, Value>: Query where QueryId:
             collateral.continuations.append(continuation)
             taskCollateral[id] = collateral
         } else {
-            let task = Task { [weak self] in
+            let task = Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 do {
                     let value = try await self.queryOperation(variables)
-                    await self.resume(for: id, with: .success(value))
+                    self.resume(for: id, with: .success(value))
                 } catch {
-                    await self.resume(for: id, with: .failure(error))
+                    self.resume(for: id, with: .failure(error))
                 }
             }
             taskCollateral[id] = TaskCollateral(variables: variables, task: task, continuations: [continuation])

@@ -11,13 +11,13 @@ import SwiftData
 import SwiftRepoCore
 
 // An implementation of `Store` that uses `SwiftData` under the hood
+@MainActor
 public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: PersistentModel, Model.Key: Hashable & Codable {
     public typealias Key = Model.Key
     public typealias Value = Model
     /// A closure that defines how existing values are merged into new values.
     public typealias Merge = (_ existing: Value, _ into: Value) -> Void
     
-    @MainActor
     public var keys: [Key] {
         get throws {
             try modelContext.fetch(FetchDescriptor<Model>()).map { $0.id }
@@ -33,7 +33,6 @@ public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: Per
         self.timestampStore = PersistentStore<Key, UUID>(id: String(describing: Model.self))
     }
     
-    @MainActor
     public func set(key: Key, value: Value?) throws -> Value? {
         guard let value else {
             try evict(for: key)
@@ -60,23 +59,20 @@ public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: Per
         return value
     }
     
-    @MainActor
     public func get(key: Key) throws -> Value? {
         return try modelContext.fetch(FetchDescriptor(predicate: Value.predicate(key: key))).first
     }
     
-    @MainActor
-    public func age(of key: Key) throws -> TimeInterval? {
-        try timestampStore.age(of: key)
+    public func age(of key: Key) async throws -> TimeInterval? {
+        try await timestampStore.age(of: key)
     }
     
-    @MainActor
+    @AsyncLocked
     public func clear() async throws {
         try modelContext.delete(model: Value.self)
         try await timestampStore.clear()
     }
     
-    @MainActor
     public func save() throws {
         try modelContext.save()
     }
@@ -89,14 +85,12 @@ public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: Per
     private let merge: Merge?
     private let timestampStore: PersistentStore<Model.Key, UUID>
     
-    @MainActor
     private lazy var modelContext: ModelContext = {
         return modelContainer.mainContext
     }()
     
     // MARK: - Helpers
     
-    @MainActor
     private func evict(for key: Key) throws {
         let predicate = Value.predicate(key: key)
         try modelContext.delete(model: Value.self, where: predicate)

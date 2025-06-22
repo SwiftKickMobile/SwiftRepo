@@ -1,5 +1,6 @@
-// swift-tools-version:5.8
+// swift-tools-version:6.0
 import PackageDescription
+import CompilerPluginSupport
 
 let package = Package(
     name: "SwiftRepo",
@@ -10,11 +11,15 @@ let package = Package(
     products: [
         .library(name: "SwiftRepo", targets: ["SwiftRepo"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-syntax.git", exact: "510.0.0")
+    ],
     targets: [
         .target(
             name: "SwiftRepo",
             dependencies: [
-                .target(name: "SwiftRepoCore")
+                .target(name: "SwiftRepoCore"),
+                .target(name: "SwiftRepoMacros")
             ],
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
@@ -22,12 +27,18 @@ let package = Package(
         ),
         .target(
             name: "SwiftRepoCore",
+            dependencies: [
+                .target(name: "SwiftRepoMacros")
+            ],
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
         ),
         .target(
             name: "SwiftRepoTest",
+            dependencies: [
+                .target(name: "SwiftRepoCore")
+            ],
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
             ]
@@ -41,6 +52,13 @@ let package = Package(
             ],
             swiftSettings: [
                 .unsafeFlags(["-enable-library-evolution"]),
+            ]
+        ),
+        .macro(
+            name: "SwiftRepoMacros",
+            dependencies: [
+                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
+                .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
             ]
         ),
     ]

@@ -6,13 +6,13 @@
 import Foundation
 
 // An in-memory implementation of `Store` that uses a `Dictionary`
-public final actor DictionaryStore<Key, Value>: Store where Key: Hashable {
+@MainActor
+public final class DictionaryStore<Key, Value>: Store where Key: Hashable {
     // MARK: - API
 
     /// A closure that defines how old values are merged with new values.
-    public typealias Merge = (_ old: Value, _ new: Value) -> Value
+    public typealias Merge = @Sendable (_ old: Value, _ new: Value) -> Value
 
-    @MainActor
     public func set(key: Key, value: Value?) -> Value? {
         switch value {
         case let value?:
@@ -28,21 +28,18 @@ public final actor DictionaryStore<Key, Value>: Store where Key: Hashable {
         return store[key]?.value
     }
 
-    @MainActor
     public func get(key: Key) -> Value? {
         store[key]?.value
     }
 
-    @MainActor
-    public func age(of key: Key) -> TimeInterval? {
+    public func age(of key: Key) async throws -> TimeInterval? {
         store[key]?.ageOf
     }
 
     public func clear() async {
-        await actorClear()
+        store.removeAll()
     }
 
-    @MainActor
     public var keys: [Key] {
         Array(store.keys)
     }
@@ -57,14 +54,6 @@ public final actor DictionaryStore<Key, Value>: Store where Key: Hashable {
 
     // MARK: - Variables
 
-    @MainActor
     private var store: [Key: TimestampedValue<Value>] = [:]
-    nonisolated private let merge: Merge?
-
-    // MARK: - Accessing actor-isolated state
-
-    @MainActor
-    private func actorClear() {
-        store.removeAll()
-    }
+    private let merge: Merge?
 }

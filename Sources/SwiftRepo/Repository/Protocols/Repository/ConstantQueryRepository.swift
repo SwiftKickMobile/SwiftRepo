@@ -11,6 +11,7 @@ import SwiftRepoCore
 ///
 /// Intended to abstract away the lower-level `Query` and `ObservableStore` protocols into
 /// a single, simplified interface.  An example use case is account service. Specifically getting account info, which requires no input variables.
+@MainActor
 public protocol ConstantQueryRepository<Variables, Value>: HasValueResult {
     
     associatedtype Variables: Hashable
@@ -23,7 +24,6 @@ public protocol ConstantQueryRepository<Variables, Value>: HasValueResult {
     ///   - willGet: a callback that is invoked if the query is performed.
     ///
     ///   When using a loading controller, the function `loadingController.loading` should be passed to the `willGet` parameter.
-    @MainActor
     func get(errorIntent: ErrorIntent, queryStrategy: QueryStrategy?, willGet: @escaping Query.WillGet) async
 
     /// Publishes results. The publisher's first element will be the currently stored value, if any, at the time of the `publisher()` call.
@@ -32,8 +32,7 @@ public protocol ConstantQueryRepository<Variables, Value>: HasValueResult {
     ///
     /// Values will be published on the main queue, so there is no need to every use `receive(on: DispatchQueue.main)`
     /// and doing so will break the synchronous data pipieline needed for views to appear fully formed.
-    @MainActor
-    func publisher() -> AnyPublisher<ValueResult, Never>
+    func publisher() async -> AnyPublisher<ValueResult, Never>
 
     /// Prefetches.
     ///
@@ -44,16 +43,19 @@ public protocol ConstantQueryRepository<Variables, Value>: HasValueResult {
 
 public extension ConstantQueryRepository {
     
-    @MainActor
     func get(
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
         willGet: @escaping Query.WillGet
     ) async {
-        return await get(errorIntent: errorIntent, queryStrategy: queryStrategy, willGet: willGet)
+        await get(
+            errorIntent: errorIntent,
+            queryStrategy: queryStrategy,
+            willGet: willGet
+        )
     }
     
     func prefetch(errorIntent: ErrorIntent = .dispensable) async {
-        return await prefetch(errorIntent: errorIntent)
+        await prefetch(errorIntent: errorIntent)
     }
 }

@@ -16,8 +16,8 @@ import SwiftRepoCore
 ///     1. When requesting the first page. This prevents stale data from being published when calling `get` with new variables.
 ///     2. When requesting a publisher. This prevents stale data from being published on view model initialization.
 /// 2. Using the `.ifNotStored` query strategy to ensure that, as additional pages are loaded, they are appended to the existing store.
-public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRepository
-    where QueryId: Hashable, Variables: Hashable, Key: Hashable, Variables: HasCursorPaginationInput {
+public final class PagedQueryRepository<QueryId: Hashable & Sendable, Variables: Hashable & Sendable, Key: Hashable & Sendable, Value: Sendable>: QueryRepository
+    where Variables: HasCursorPaginationInput {
     // MARK: - API
 
     public typealias QueryType = any Query<QueryId, Variables, Value>
@@ -28,19 +28,19 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
 
     public typealias ValueVariablesFactory = (_ queryId: QueryId, _ variables: Variables, _ value: Value) -> Variables
 
-    @MainActor
+    @AsyncLocked
     public func get(
         queryId: QueryId,
         variables: Variables,
         errorIntent: ErrorIntent,
         queryStrategy _: QueryStrategy? = nil,
-        willGet: @escaping () async -> Void
+        willGet: @escaping @MainActor () async -> Void
     ) async {
         // Evict stale data when getting the first page.
         if !variables.isPaging {
             do {
                 let key = keyFactory(queryId, variables)
-                try observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+                try await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
             } catch {
                 // Any errors on prefetch can be propagated through the publisher.
                 let key = keyFactory(queryId, variables)
@@ -61,14 +61,15 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
         )
     }
 
-    @MainActor
-    public func publisher(for queryId: QueryId, setCurrent key: Key) -> AnyPublisher<ValueResult, Never> {
+    @AsyncLocked
+    public func publisher(for queryId: QueryId, setCurrent key: Key) async -> AnyPublisher<ValueResult, Never> {
         // Evict stale data before returning the publisher to ensure that stale data isn't displayed
         // before `get` is called.
-        try? observableStore.evict(for: key, ifOlderThan: ifOlderThan)
-        return repository.publisher(for: queryId, setCurrent: key)
+        try? await observableStore.evict(for: key, ifOlderThan: ifOlderThan)
+        return await repository.publisher(for: queryId, setCurrent: key)
     }
 
+    @AsyncLocked
     public func prefetch(queryId: QueryId, variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
         await repository.prefetch(queryId: queryId, variables: variables, errorIntent: errorIntent)
     }
@@ -81,7 +82,7 @@ public final class PagedQueryRepository<QueryId, Variables, Key, Value>: QueryRe
     public convenience init(
         observableStore: any ObservableStore<Key, QueryId, Value>,
         ifOlderThan: TimeInterval,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @escaping @Sendable (Variables) async throws -> Value
     )
         where Key == QueryStoreKey<QueryId, Variables>,
         Value: HasValueVariables,

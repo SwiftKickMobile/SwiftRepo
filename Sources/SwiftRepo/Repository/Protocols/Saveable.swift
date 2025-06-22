@@ -8,6 +8,7 @@
 import Foundation
 
 /// A protocol for a `Store` that provides a hook to `save`, or commit any outstanding changes.
+@MainActor
 public protocol Saveable {
     
     /// Commit any outstanding changes made to a store.

@@ -3,10 +3,12 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import XCTest
+import Foundation
+import Testing
 @testable import SwiftRepo
 
-class IndefiniteControllerTests: XCTestCase {
+@MainActor
+struct IndefiniteControllerTests {
     // MARK: - API
 
     struct DelayedStep: CustomStringConvertible {
@@ -46,7 +48,8 @@ class IndefiniteControllerTests: XCTestCase {
 
     // MARK: - Tests
 
-    func test_delayExceeded_callsIsRunningDelegate() async throws {
+    @Test("Delay exceeded calls is running delegate")
+    func delayExceededCallsIsRunningDelegate() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             DelayedStep(step: .stop, delay: delayExceeded),
@@ -57,7 +60,8 @@ class IndefiniteControllerTests: XCTestCase {
         )
     }
 
-    func test_delayNotExceeded_doesNotCallIsRunningDelegate() async throws {
+    @Test("Delay not exceeded does not call is running delegate")
+    func delayNotExceededDoesNotCallIsRunningDelegate() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             DelayedStep(step: .stop, delay: delayNotExceeded),
@@ -68,7 +72,8 @@ class IndefiniteControllerTests: XCTestCase {
         )
     }
 
-    func test_stopSync_trueIfDelayNotExceeded() async throws {
+    @Test("Stop sync true if delay not exceeded")
+    func stopSyncTrueIfDelayNotExceeded() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             DelayedStep(step: .stopSync, delay: delayNotExceeded),
@@ -79,7 +84,8 @@ class IndefiniteControllerTests: XCTestCase {
         )
     }
 
-    func test_stopSync_falseIfDelayExceeded() async throws {
+    @Test("Stop sync false if delay exceeded")
+    func stopSyncFalseIfDelayExceeded() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             DelayedStep(step: .stopSync, delay: delayExceeded),
@@ -90,7 +96,8 @@ class IndefiniteControllerTests: XCTestCase {
         )
     }
 
-    func test_resetDelayNotExceeded_doesNotRun() async throws {
+    @Test("Reset delay not exceeded does not run")
+    func resetDelayNotExceededDoesNotRun() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             DelayedStep(step: .reset, delay: delayNotExceeded),
@@ -101,7 +108,8 @@ class IndefiniteControllerTests: XCTestCase {
         )
     }
 
-    func test_resetDelayExceeded_doesNotStop() async throws {
+    @Test("Reset delay exceeded does not stop")
+    func resetDelayExceededDoesNotStop() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             DelayedStep(step: .reset, delay: delayExceeded),
@@ -114,7 +122,8 @@ class IndefiniteControllerTests: XCTestCase {
     }
 
     /// A random test that was hitting an assertion failure due to a bug.
-    func test_random1() async throws {
+    @Test("Random test 1")
+    func random1() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             // Exceeds delay at 0.1. Must run until 0.237 => `true`
@@ -137,7 +146,8 @@ class IndefiniteControllerTests: XCTestCase {
     }
 
     /// A random test.
-    func test_random2() async throws {
+    @Test("Random test 2")
+    func random2() async throws {
         let delayedSteps = [
             DelayedStep(step: .start, delay: 0),
             DelayedStep(step: .start, delay: 0.1601575),
@@ -154,7 +164,6 @@ class IndefiniteControllerTests: XCTestCase {
         )
     }
 
-
     // MARK: - Constants
 
     private let delay: Duration = .seconds(0.1)
@@ -163,46 +172,51 @@ class IndefiniteControllerTests: XCTestCase {
     private var delayExceeded: Duration { delay + .seconds(0.05) }
     private let sleepTolerance: Duration = .seconds(0.001)
 
-    // MARK: - Variables
-
-    private var exceededDelayChanged: [Bool] = []
-    private var controller: IndefiniteController!
-
-    // MARK: - Lifecycle
-
-    @MainActor
-    override func setUp() {
-        super.setUp()
-        exceededDelayChanged = []
-        controller = IndefiniteController(delay: delay, minimumDuration: minRunTime, delegate: self)
-    }
-
     // MARK: - Helpers
 
     func perform(delayedSteps: [DelayedStep], expectedExceededDelayChanges: [Bool]?) async throws {
+        final class ResultCollector: @unchecked Sendable {
+            private let lock = NSLock()
+            private var exceededDelayChanged: [Bool] = []
+            
+            func append(_ value: Bool) {
+                lock.withLock {
+                    exceededDelayChanged.append(value)
+                }
+            }
+            
+            func getResults() -> [Bool] {
+                lock.withLock {
+                    exceededDelayChanged
+                }
+            }
+        }
+        
+        let resultCollector = ResultCollector()
+        let controller = IndefiniteController(delay: delay, minimumDuration: minRunTime) { didExceedDelay in
+            resultCollector.append(didExceedDelay)
+        }
+        
+        let sleepToleranceLocal = sleepTolerance
         for delayedStep in delayedSteps {
-            Task.detached(priority: .high) {
-                try await Task.sleep(for: delayedStep.delay, tolerance: self.sleepTolerance)
+            Task.detached(priority: .high) { @Sendable in
+                try await Task.sleep(for: delayedStep.delay, tolerance: sleepToleranceLocal)
                 switch delayedStep.step {
-                case .reset: await self.controller.prepareForReuse()
-                case .start: await self.controller.start()
-                case .stop: await self.controller.stop()
-                case .stopSync: await self.exceededDelayChanged.append(!self.controller.tryStoppingSynchronously())
+                case .reset: await controller.prepareForReuse()
+                case .start: await controller.start()
+                case .stop: await controller.stop()
+                case .stopSync: await resultCollector.append(!controller.tryStoppingSynchronously())
                 }
             }
         }
         let maxDelay = delayedSteps.map(\.delay).max() ?? .zero
         try await Task.sleep(for: maxDelay + minRunTime + .seconds(0.5), tolerance: sleepTolerance)
+        
+        let exceededDelayChanged = resultCollector.getResults()
         if let expectedIsRunningChanges = expectedExceededDelayChanges {
-            XCTAssertEqual(expectedIsRunningChanges, exceededDelayChanged)
+            #expect(expectedIsRunningChanges == exceededDelayChanged)
         } else {
             print("isRunningChanged=\(exceededDelayChanged)")
         }
-    }
-}
-
-extension IndefiniteControllerTests: IndefiniteControllerDelegate {
-    func didExceedDelayChanged(_ didExceedDelay: Bool) {
-        exceededDelayChanged.append(didExceedDelay)
     }
 }

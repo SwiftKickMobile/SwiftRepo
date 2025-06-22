@@ -3,7 +3,7 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import Combine
+@preconcurrency import Combine
 import Foundation
 import SwiftRepoCore
 
@@ -16,17 +16,18 @@ public enum QueryError: String, Error {
 ///
 /// In a typical usage, a repository would query remote data through an
 /// instance of `Query`, which would in turn be responsible for making the service call.
+@MainActor
 public protocol Query<QueryId, Variables, Value> {
     /// Query ID identifies a unique request for the purposes of request de-duplication, cancellation and providing ID-scoped publishers.
-    associatedtype QueryId: Hashable
+    associatedtype QueryId: Hashable & Sendable
 
     /// The variables that provide the request parameters. When two overlapping queries are made with the same query ID and variables,
     /// only one request is made. When two overlapping queries are made with the same query ID and different variables, any ongoing
     /// request is cancelled and a new request is made with the latest variables.
-    associatedtype Variables: Hashable
+    associatedtype Variables: Hashable & Sendable
 
     /// The response type returned by the query.
-    associatedtype Value
+    associatedtype Value: Sendable
 
     /// The result type used by publishers.
     typealias ResultType = QueryResult<QueryId, Variables, Value, Error>
@@ -53,7 +54,7 @@ public protocol Query<QueryId, Variables, Value> {
 }
 
 public extension Query {
-    typealias WillGet = () async -> Void
+    typealias WillGet = @MainActor () async -> Void
 
     @discardableResult
     /// Conditionally perform the query if needed based on the specified strategy and the state of the store.
@@ -168,7 +169,7 @@ public extension Query {
             },
             modelStoreSet: { @MainActor value in
                 for model in value.models {
-                    try modelStore.set(key: model.id, value: model)
+                    try await modelStore.set(key: model.id, value: model)
                 }
                 
                 switch mergeStrategy {
@@ -182,7 +183,7 @@ public extension Query {
                     let allModelKeys = Set(try modelStore.keys)
                     let trimModelKeys = allModelKeys.subtracting(keepModelKeys)
                     for modelKey in trimModelKeys {
-                        try modelStore.set(key: modelKey, value: nil)
+                        try await modelStore.set(key: modelKey, value: nil)
                     }
                 }
                 
@@ -232,7 +233,7 @@ private extension Query {
         modelStoreSet: (@MainActor (Value) async throws -> Void)?
     ) async throws -> Value?
     where Store: ObservableStore, Store.Key == Key, Store.PublishKey == QueryId {
-        let key = await store.map(key: unmappedKey)
+        let key = store.map(key: unmappedKey)
         // Set the current key to this query's key. If the key exists in the store and is not already the current
         // key, the new current value will be published.
         await store.set(currentKey: key)
@@ -274,7 +275,7 @@ private extension Query {
             let value = try await get(id: id, variables: variables)
             if let valueVariables = valueVariablesFactory?(id, variables, value) {
                 let valueKey = keyFactory(id, valueVariables)
-                await store.addMapping(from: valueKey, to: key)
+                store.addMapping(from: valueKey, to: key)
             }
             // If a closure was provided to populate the value models, do so.
             if let modelStoreSet {

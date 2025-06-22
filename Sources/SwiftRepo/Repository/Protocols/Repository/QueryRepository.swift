@@ -13,6 +13,7 @@ import SwiftRepoCore
 /// a single, simplified interface. An few example use cases:
 /// 1. Document list repository, where the query ID is business entity + document category while the variables include sorting and filtering options.
 /// 2. File repository, where the query ID is typically some unique string, such as a UUID + prefix and the variables are a potentially temporary file URL.
+@MainActor
 public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult {
     
     associatedtype QueryId: Hashable
@@ -31,7 +32,6 @@ public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult 
     ///   - willGet: a callback that is invoked if the query is performed.
     ///
     ///   When using a loading controller, the function `loadingController.loading` should be passed to the `willGet` parameter.
-    @MainActor
     func get(
         queryId: QueryId,
         variables: Variables,
@@ -51,8 +51,7 @@ public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult 
     /// It is important to recognize that this function has the side effect of setting the current key for the repository's internal observable store. This is done because the publisher
     /// emits the current value and view models should be explicit about what initial value the expect to receive rather than taking an arbitrary value. This is primarily needed for
     /// variable-based caching.
-    @MainActor
-    func publisher(for queryId: QueryId, setCurrent key: Key) -> AnyPublisher<ValueResult, Never>
+    func publisher(for queryId: QueryId, setCurrent key: Key) async -> AnyPublisher<ValueResult, Never>
 
     /// Prefetches for the given query ID and variables.
     /// - Parameters:
@@ -64,7 +63,6 @@ public protocol QueryRepository<QueryId, Variables, Key, Value>: HasValueResult 
 
 public extension QueryRepository {
     
-    @MainActor
     func get(
         queryId: QueryId,
         variables: Variables,
@@ -88,8 +86,7 @@ public extension QueryRepository {
 
 public extension QueryRepository where QueryId == Key {
     /// A convenience function that eliminates the need to specify the current key when values are stored by query ID.
-    @MainActor
-    func publisher(for queryId: QueryId) -> AnyPublisher<ValueResult, Never> {
-        publisher(for: queryId, setCurrent: queryId)
+    func publisher(for queryId: QueryId) async -> AnyPublisher<ValueResult, Never> {
+        await publisher(for: queryId, setCurrent: queryId)
     }
 }

@@ -3,103 +3,113 @@
 //  Copyright © 2022 ZenBusiness PBC. All rights reserved.
 //
 
-import XCTest
+import Foundation
+import Testing
 import SwiftRepoTest
 @testable import SwiftRepo
 
 @MainActor
-class OptimisticMutationTests: XCTestCase {
+struct OptimisticMutationTests {
     
-    func test_mutation_remoteSuccess_storedValues() async throws {
-        XCTAssertEqual(try store.get(key: key), zero)
-        let mutation = makeMutation()
-        remoteMutationResults = DelayedValues<String>(values: [
-            .makeValue(three) // Success response
+    @Test("Mutation remote success stored values")
+    func mutationRemoteSuccessStoredValues() async throws {
+        let testState = TestState()
+        #expect(testState.store.get(key: testState.key) == testState.zero)
+        let mutation = testState.makeMutation()
+        testState.remoteMutationResults = DelayedValues<String>(values: [
+            .makeValue(testState.three) // Success response
         ])
-        Task { try await mutation.mutate(id: key, variables: one) }
+        Task { try await mutation.mutate(id: testState.key, variables: testState.one) }
         try await Task.sleep(for: .seconds(0.05))
-        try store.set(key: key, value: one)
-        XCTAssertEqual(try store.get(key: key), one)
-        Task { try await mutation.mutate(id: key, variables: two) }
+        _ = testState.store.set(key: testState.key, value: testState.one)
+        #expect(testState.store.get(key: testState.key) == testState.one)
+        Task { try await mutation.mutate(id: testState.key, variables: testState.two) }
         try await Task.sleep(for: .seconds(0.05))
-        try store.set(key: key, value: two)
-        XCTAssertEqual(try store.get(key: key), two)
+        _ = testState.store.set(key: testState.key, value: testState.two)
+        #expect(testState.store.get(key: testState.key) == testState.two)
         // Since we're debouncing, the remote mutation shouldn't have happened yet.
-        try store.set(key: key, value: three)
-        XCTAssertEqual(try store.get(key: key), three)
+        _ = testState.store.set(key: testState.key, value: testState.three)
+        #expect(testState.store.get(key: testState.key) == testState.three)
         try await Task.sleep(for: .seconds(0.1))
         // Now, the remote mutation should have been called once.
-        try store.set(key: key, value: three)
-        XCTAssertEqual(try store.get(key: key), three)
+        _ = testState.store.set(key: testState.key, value: testState.three)
+        #expect(testState.store.get(key: testState.key) == testState.three)
     }
 
-    func test_mutation_remoteFailure_revertToOriginal() async throws {
-        XCTAssertEqual(try store.get(key: key), zero)
-        let mutation = makeMutation()
-        remoteMutationResults = DelayedValues<String>(values: [
+    @Test("Mutation remote failure revert to original")
+    func mutationRemoteFailureRevertToOriginal() async throws {
+        let testState = TestState()
+        #expect(testState.store.get(key: testState.key) == testState.zero)
+        let mutation = testState.makeMutation()
+        testState.remoteMutationResults = DelayedValues<String>(values: [
             .makeError(TestError(category: .failure)), // Failure response
         ])
-        Task { try await mutation.mutate(id: key, variables: one) }
+        Task { try await mutation.mutate(id: testState.key, variables: testState.one) }
         try await Task.sleep(for: .seconds(0.05))
-        try store.set(key: key, value: one)
-        XCTAssertEqual(try store.get(key: key), one)
+        _ = testState.store.set(key: testState.key, value: testState.one)
+        #expect(testState.store.get(key: testState.key) == testState.one)
         try await Task.sleep(for: .seconds(0.1))
         // The remote mutation should have failed and the original value restored.
-        try store.set(key: key, value: zero)
-        XCTAssertEqual(try store.get(key: key), zero)
+        _ = testState.store.set(key: testState.key, value: testState.zero)
+        #expect(testState.store.get(key: testState.key) == testState.zero)
     }
 
-    @MainActor
-    func test_mutation_remoteSuccessThenFailure_revertToPreviousSuccess() async throws {
-        XCTAssertEqual(try store.get(key: key), zero)
-        let mutation = makeMutation()
-        remoteMutationResults = DelayedValues<String>(values: [
-            .makeValue(two), // Success response
+    @Test("Mutation remote success then failure revert to previous success")
+    func mutationRemoteSuccessThenFailureRevertToPreviousSuccess() async throws {
+        let testState = TestState()
+        #expect(testState.store.get(key: testState.key) == testState.zero)
+        let mutation = testState.makeMutation()
+        testState.remoteMutationResults = DelayedValues<String>(values: [
+            .makeValue(testState.two), // Success response
             .makeError(TestError(category: .failure)), // Failure response
         ])
-        Task { try await mutation.mutate(id: key, variables: one) }
+        Task { try await mutation.mutate(id: testState.key, variables: testState.one) }
         try await Task.sleep(for: .seconds(0.05))
-        try store.set(key: key, value: one)
-        XCTAssertEqual(try store.get(key: key), one)
+        _ = testState.store.set(key: testState.key, value: testState.one)
+        #expect(testState.store.get(key: testState.key) == testState.one)
         try await Task.sleep(for: .seconds(0.1))
         // The first remote mutation should have succeeded.
-        try store.set(key: key, value: two)
-        XCTAssertEqual(try store.get(key: key), two)
-        Task { try await mutation.mutate(id: key, variables: three) }
+        _ = testState.store.set(key: testState.key, value: testState.two)
+        #expect(testState.store.get(key: testState.key) == testState.two)
+        Task { try await mutation.mutate(id: testState.key, variables: testState.three) }
         try await Task.sleep(for: .seconds(0.05))
-        try store.set(key: key, value: three)
-        XCTAssertEqual(try store.get(key: key), three)
+        _ = testState.store.set(key: testState.key, value: testState.three)
+        #expect(testState.store.get(key: testState.key) == testState.three)
         try await Task.sleep(for: .seconds(0.1))
         // The second remote mutation should have succeeded, reverting back to the last known successfull value.
-        try store.set(key: key, value: two)
-        XCTAssertEqual(try store.get(key: key), two)
+        _ = testState.store.set(key: testState.key, value: testState.two)
+        #expect(testState.store.get(key: testState.key) == testState.two)
     }
+}
 
+// MARK: - Test State Helper
+
+@MainActor
+private class TestState {
     // MARK: Constants
 
-    private let debounceInterval: TimeInterval = 0.1
-    private let key = "key"
-    private let zero = "zero"
-    private let one = "one"
-    private let two = "two"
-    private let three = "three"
+    let debounceInterval: TimeInterval = 0.1
+    let key = "key"
+    let zero = "zero"
+    let one = "one"
+    let two = "two"
+    let three = "three"
 
     // MARK: Variables
 
-    private var store: (any Store<String, String>)!
-    private var remoteMutationResults: DelayedValues<String>!
+    var store: DictionaryStore<String, String>!
+    var remoteMutationResults: DelayedValues<String>!
 
     // MARK: Lifecycle
 
-    override func setUp() {
-        super.setUp()
+    init() {
         store = DictionaryStore<String, String>()
-        try! store.set(key: key, value: zero)
+        _ = store.set(key: key, value: zero)
     }
 
     // MARK: Helpers
 
-    private func makeMutation() -> OptimisticMutation<String, String, String> {
+    func makeMutation() -> OptimisticMutation<String, String, String> {
         OptimisticMutation(
             debounceInterval: debounceInterval,
             store: store

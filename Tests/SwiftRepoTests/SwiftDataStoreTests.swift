@@ -5,41 +5,44 @@
 //  Created by Carter Foughty on 10/2/24.
 //
 
-import XCTest
+import Foundation
+import Testing
 import SwiftData
 @testable import SwiftRepo
 
 @MainActor
-class SwiftDataStoreTests: XCTestCase {
+struct SwiftDataStoreTests {
     
     // MARK: - Tests
     
-    func test_merge() async throws {
+    @Test("Merge functionality")
+    func merge() async throws {
         let store = makeStore()
         let uuid = UUID()
         let model = TestStoreModel(id: uuid)
-        let _ = try store.set(key: model.id, value: model)
+        _ = try store.set(key: model.id, value: model)
         let stored = try store.get(key: model.id)
         
         let model2 = TestStoreModel(id: uuid)
-        let _ = try store.set(key: model.id, value: model2)
-        XCTAssertTrue(stored?.updatedAt == model2.updatedAt)
+        _ = try store.set(key: model.id, value: model2)
+        #expect(stored?.updatedAt == model2.updatedAt)
     }
     
-    func test_timestamp() async throws {
+    @Test("Timestamp functionality")
+    func timestamp() async throws {
         let store = makeStore()
         let uuid = UUID()
         let model = TestStoreModel(id: uuid)
-        let _ = try store.set(key: model.id, value: model)
+        _ = try store.set(key: model.id, value: model)
         
-        let updatedAt = try store.age(of: uuid)
-        XCTAssertNotNil(updatedAt)
+        let updatedAt = try await store.age(of: uuid)
+        #expect(updatedAt != nil)
         
         let model2 = TestStoreModel(id: uuid)
-        let _ = try store.set(key: model.id, value: model2)
-        let updatedAt2 = try store.age(of: uuid)
-        XCTAssertNotNil(updatedAt2)
-        XCTAssertNotEqual(updatedAt, updatedAt2)
+        _ = try store.set(key: model.id, value: model2)
+        let updatedAt2 = try await store.age(of: uuid)
+        #expect(updatedAt2 != nil)
+        #expect(updatedAt != updatedAt2)
     }
 
     // MARK: - Constants
@@ -60,10 +63,6 @@ class SwiftDataStoreTests: XCTestCase {
             }
         }
     }
-
-    // MARK: - Variables
-
-    // MARK: - Lifecycle
 
     // MARK: - Helpers
 

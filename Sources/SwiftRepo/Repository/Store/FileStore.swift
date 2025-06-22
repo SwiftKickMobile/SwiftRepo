@@ -7,13 +7,12 @@
 
 import OSLog
 import Foundation
-
-// TODO: there are a lot of things in here that should be done async and should throw but we need to modify the `Store` API
-// TODO: and there are probably massive ripple effects. For now, we use the `PersistentValue` type to defer async loading.
-// TODO: and any failed save operations will not be handled properly.
+import SwiftRepoCore
 
 /// A persistent store implementation that supports an optional 2nd-level storage for in-memory caching.
-public final actor FileStore<Wrapped>: Store {
+/// This store is useful for storing images and caching recently used ones in memory.
+@MainActor
+public final class FileStore<Value: Sendable>: Store {
 
     // MARK: - API
 
@@ -22,13 +21,13 @@ public final actor FileStore<Wrapped>: Store {
     public typealias Key = String
 
     /// A closure that knows how to load a file URL of type `Wrapped`.
-    public typealias Load = (URL) async throws -> Wrapped
+    public typealias Load = @Sendable (URL) async throws -> Value
 
     /// A closure that knows how to save type `Wrapped` to a file URL.
-    public typealias Save = (Wrapped, URL) async throws -> Void
+    public typealias Save = @Sendable (Value, URL) async throws -> Void
 
     /// A second level of storage intended for in-memory faster retrieval. Typically this would be an `NSCacheStore`.
-    public typealias SecondLevelStore = any Store<Key, Wrapped>
+    public typealias SecondLevelStore = any Store<Key, Value>
 
     public enum Location: Sendable {
         case documents(subpath: [String])
@@ -55,9 +54,9 @@ public final actor FileStore<Wrapped>: Store {
     }
 
     // Create a `Data` store
-    public init(location: Location, secondLevelStore: SecondLevelStore? = nil) where Wrapped == Data {
-        print("PersistentStore location=\(location.directoryURL)")
-        self.init(
+    public convenience init(location: Location, secondLevelStore: SecondLevelStore? = nil) throws where Value == Data {
+        print("FileStore location=\(location.directoryURL)")
+        try self.init(
             load: { url in
                 try Data(contentsOf: url)
             },
@@ -75,16 +74,12 @@ public final actor FileStore<Wrapped>: Store {
         save: @escaping Save,
         location: Location,
         secondLevelStore: SecondLevelStore? = nil
-    ) {
+    ) throws {
         self.load = load
         self.save = save
         self.location = location
         self.secondLevelStore = secondLevelStore
-        do {
-            try FileManager.default.createDirectory(at: location.directoryURL, withIntermediateDirectories: true)
-        } catch {
-            self.logger.error("\(error)")
-        }
+        try FileManager.default.createDirectory(at: location.directoryURL, withIntermediateDirectories: true)
     }
 
     // MARK: - Constants
@@ -94,41 +89,37 @@ public final actor FileStore<Wrapped>: Store {
     private let load: Load
     private let save: Save
     private let location: Location
-    nonisolated private let secondLevelStore: (any Store<Key, Wrapped>)?
-    private let logger = Logger(subsystem: "SwiftRepo", category: "PersistentStore")
+    private let secondLevelStore: (any Store<Key, Value>)?
 
     // MARK: - Store
 
-    public typealias Value = AsyncValue<Wrapped>
-
-    @MainActor
-    public func set(key: Key, value: Value?) throws -> Value? {
+    @AsyncLocked
+    public func set(key: Key, value: Value?) async throws -> Value? {
         switch value {
         case let value?:
-            guard let wrapped = value.wrapped else { return nil }
-            try secondLevelStore?.set(key: key, value: wrapped)
-            save(wrapped: wrapped, url: url(for: key))
+            try await secondLevelStore?.set(key: key, value: value)
+            try await save(value: value, url: url(for: key))
             return value
         case .none:
-            try secondLevelStore?.set(key: key, value: nil)
+            try await secondLevelStore?.set(key: key, value: nil)
             let url = url(for: key)
             try? FileManager.default.removeItem(atPath: url.path)
             return nil
         }
     }
 
-    @MainActor
-    public func get(key: Key) throws -> Value? {
-        if let wrapped = try secondLevelStore?.get(key: key) { return AsyncValue(initial: .wrapped(wrapped)) }
+    @AsyncLocked
+    public func get(key: Key) async throws -> Value? {
+        if let value = try await secondLevelStore?.get(key: key) { return value }
         let url = url(for: key)
         switch FileManager.default.fileExists(atPath: url.path) {
-        case true: return load(url: url)
+        case true: return try await load(url: url)
         case false: return nil
         }
     }
 
-    @MainActor
-    public func age(of key: Key) throws -> TimeInterval? {
+    @AsyncLocked
+    public func age(of key: Key) async throws -> TimeInterval? {
         do {
             let url = url(for: key)
             let attr = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -139,101 +130,37 @@ public final actor FileStore<Wrapped>: Store {
         }
     }
 
+    @AsyncLocked
     public func clear() async throws {
         try await secondLevelStore?.clear()
-        try? FileManager.default.removeItem(atPath: location.directoryURL.path)
-        fatalError("TODO delete the directory")
+        try FileManager.default.removeItem(atPath: location.directoryURL.path)
     }
 
-    @MainActor
     public var keys: [Key] {
         (try? FileManager.default.contentsOfDirectory(atPath: location.directoryURL.path)) ?? []
     }
 
     // MARK: - File management
 
-    @MainActor
     private func url(for key: Key) -> URL {
         let url = location.directoryURL
         return url.appendingPathComponent(key)
     }
 
-    @MainActor
-    private func load(url: URL) -> Value {
-        AsyncValue(initial: .load {
-            do {
-                return try await withUnsafeThrowingContinuation { continuation in
-                    Task.detached(priority: .medium) {
-                        let value = try await self.load(url)
-                        continuation.resume(returning: value)
-                    }
-                }
-            } catch {
-                self.logger.error("\(error)")
-                throw error
-            }
-        })
+    @BackgroundFileActor
+    private func load(url: URL) async throws -> Value {
+        return try await self.load(url)
     }
 
-    @MainActor
-    private func save(wrapped: Wrapped, url: URL) {
-        Task.detached(priority: .medium) {
-            do {
-                try await self.save(wrapped, url)
-            } catch {
-                self.logger.error("\(error)")
-                throw error
-            }
-        }
+    @BackgroundFileActor
+    private func save(value: Value, url: URL) async throws {
+        try await self.save(value, url)
     }
 }
 
 @globalActor
-struct MediaActor {
-  actor ActorType { }
+actor BackgroundFileActor {
+    static let shared = BackgroundFileActor()
 
-  static let shared: ActorType = ActorType()
+    private init() {}
 }
-
-
-// Wraps a persistent value that may be in memory on disk
-public class AsyncValue<Wrapped> {
-
-    // MARK: - API
-
-    public func wrapped() async throws -> Wrapped {
-        if let wrapped { return wrapped }
-        switch initial {
-        case .wrapped(let wrapped):
-            self.wrapped = wrapped
-            return wrapped
-        case .load(let load):
-            let wrapped = try await load()
-            self.wrapped = wrapped
-            return wrapped
-        }
-    }
-
-    public init(wrapped: Wrapped) {
-        self.initial = .wrapped(wrapped)
-        self.wrapped = wrapped
-    }
-
-    enum Initial {
-        case wrapped(Wrapped)
-        case load(() async throws -> Wrapped)
-    }
-
-    init(initial: Initial) {
-        self.initial = initial
-    }
-
-    private(set) var wrapped: Wrapped?
-
-    // MARK: - Constants
-
-    // MARK: - Variables
-
-    private let initial: Initial
-}
-

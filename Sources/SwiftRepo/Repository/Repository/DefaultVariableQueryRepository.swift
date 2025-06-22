@@ -8,8 +8,7 @@ import Foundation
 import SwiftRepoCore
 
 /// The default `VariableQueryRepository` implementation.
-public final class DefaultVariableQueryRepository<Variables, Value>: VariableQueryRepository
-    where Variables: Hashable {
+public final class DefaultVariableQueryRepository<Variables: Hashable & Sendable, Value: Sendable>: VariableQueryRepository {
     // MARK: - API
 
     public typealias QueryType = any Query<Variables, Variables, Value>
@@ -39,7 +38,7 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
     public convenience init(
         observableStore: any ObservableStore<Variables, Variables, Value>,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping (Variables) async throws -> Value
+        queryOperation: @escaping @Sendable (Variables) async throws -> Value
     ) {
         self.init(
             observableStore: observableStore,
@@ -68,12 +67,12 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
 
     // MARK: - VariableQueryRepository
 
-    @MainActor
+    @AsyncLocked
     public func get(
         variables: Variables,
         errorIntent: ErrorIntent,
         queryStrategy: QueryStrategy? = nil,
-        willGet: @escaping () async -> Void
+        willGet: @escaping @MainActor () async -> Void
     ) async {
         await repository.get(
             queryId: variables,
@@ -84,11 +83,12 @@ public final class DefaultVariableQueryRepository<Variables, Value>: VariableQue
         )
     }
 
-    @MainActor
-    public func publisher(for variables: Variables) -> AnyPublisher<ValueResult, Never> {
-        repository.publisher(for: variables, setCurrent: variables)
+    @AsyncLocked
+    public func publisher(for variables: Variables) async -> AnyPublisher<ValueResult, Never> {
+        await repository.publisher(for: variables, setCurrent: variables)
     }
 
+    @AsyncLocked
     public func prefetch(variables: Variables, errorIntent: ErrorIntent = .dispensable) async {
         await repository.prefetch(queryId: variables, variables: variables, errorIntent: errorIntent)
     }

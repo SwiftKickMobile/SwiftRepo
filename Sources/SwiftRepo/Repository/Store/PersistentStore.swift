@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 
 /// A persistent `Store` implementation implementation using `SwiftData`.
+@MainActor
 public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     public var keys: [Key] {
@@ -37,7 +38,6 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
         self.decoder = decoder
     }
     
-    @MainActor
     public func get(key: Key) throws -> Value? {
         let keyData = try encoder.encode(key)
         guard let valueData = try modelContext.fetch(
@@ -47,7 +47,6 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     }
     
     @discardableResult
-    @MainActor
     public func set(key: Key, value: Value?) throws -> Value? {
         if let value {
             try modelContext.insert(TimestampedValue(id: key, value: value, encoder: encoder))
@@ -60,15 +59,13 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
         return value
     }
     
-    @MainActor
-    public func age(of key: Key) throws -> TimeInterval? {
+    public func age(of key: Key) async throws -> TimeInterval? {
         let keyData = try encoder.encode(key)
         let result = try modelContext.fetch(FetchDescriptor(predicate: TimestampedValue.predicate(key: keyData)))
         guard let result = result.first else { return nil }
         return Date.now.timeIntervalSince(result.timestamp)
     }
     
-    @MainActor
     public func clear() async throws {
         try modelContext.delete(model: TimestampedValue.self)
         try modelContext.save()
@@ -104,7 +101,6 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     private let decoder: JSONDecoder
     private var _modelContext: ModelContext?
     
-    @MainActor
     private var modelContext: ModelContext {
         if let _modelContext {
             return _modelContext
@@ -117,7 +113,6 @@ public class PersistentStore<Key: Codable & Hashable, Value: Codable>: Store {
     
     // MARK: - Helpers
     
-    @MainActor
     private func evict(for keyData: Data) throws {
         try modelContext.delete(model: TimestampedValue.self, where: TimestampedValue.predicate(key: keyData))
         try modelContext.save()

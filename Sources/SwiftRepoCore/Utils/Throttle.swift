@@ -5,10 +5,10 @@
 
 import Foundation
 
-public actor Throttle<T> {
+public actor Throttle<T: Sendable> {
     // MARK: - API
 
-    nonisolated public init(rate: Duration, callback: @escaping (T) async -> Void) {
+    public init(rate: Duration, callback: @escaping @Sendable (T) async -> Void) {
         self.rate = rate
         self.callback = callback
     }
@@ -22,8 +22,8 @@ public actor Throttle<T> {
     }
 
     nonisolated public func update(value: T) {
-        Task {
-            await enqueue(value: value)
+        Task { [weak self] in
+            await self?.enqueue(value: value)
         }
     }
 
@@ -33,7 +33,7 @@ public actor Throttle<T> {
 
     private var waiting: Bool = false
     private let rate: Duration
-    private let callback: (T) async -> Void
+    private let callback: @Sendable (T) async -> Void
 
     // MARK: Queuing
 
