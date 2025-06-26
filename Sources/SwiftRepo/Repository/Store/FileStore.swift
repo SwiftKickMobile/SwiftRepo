@@ -59,12 +59,32 @@ public final class FileStore<Value: Sendable>: Store {
 
     // Create a `Data` store
     public convenience init(location: Location, secondLevelStore: SecondLevelStore? = nil) throws where Value == Data {
-        print("FileStore location=\(location.directoryURL)")
         try self.init(
             load: { url in
                 try Data(contentsOf: url)
             },
             save: { data, url in
+                try data.write(to: url)
+            },
+            location: location,
+            secondLevelStore: secondLevelStore
+        )
+    }
+
+    // Create a `Codable` store with JSON encoding/decoding
+    public convenience init(
+        location: Location,
+        secondLevelStore: SecondLevelStore? = nil,
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder()
+    ) throws where Value: Codable {
+        try self.init(
+            load: { url in
+                let data = try Data(contentsOf: url)
+                return try decoder.decode(Value.self, from: data)
+            },
+            save: { value, url in
+                let data = try encoder.encode(value)
                 try data.write(to: url)
             },
             location: location,
@@ -79,6 +99,7 @@ public final class FileStore<Value: Sendable>: Store {
         location: Location,
         secondLevelStore: SecondLevelStore? = nil
     ) throws {
+        print("FileStore location=\(location.directoryURL)")
         self.load = load
         self.save = save
         self.location = location
