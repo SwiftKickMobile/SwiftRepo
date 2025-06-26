@@ -32,12 +32,15 @@ public final class FileStore<Value: Sendable>: Store {
     public enum Location: Sendable {
         case documents(subpath: [String])
         case cache(subpath: [String])
+        case appGroup(identifier: String, subpath: [String])
 
         var directoryURL: URL {
             var url: URL
             switch self {
             case .documents: url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             case .cache: url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            case .appGroup(let identifier, _):
+                url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)!
             }
             for component in subpath {
                 url = url.appendingPathComponent(component)
@@ -49,6 +52,7 @@ public final class FileStore<Value: Sendable>: Store {
             switch self {
             case .cache(let subpath): subpath
             case .documents(let subpath): subpath
+            case .appGroup(_, let subpath): subpath
             }
         }
     }
