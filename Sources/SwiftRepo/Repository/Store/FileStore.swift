@@ -58,8 +58,8 @@ public final class FileStore<Value: Sendable>: Store {
     }
 
     // Create a `Data` store
-    public convenience init(location: Location, secondLevelStore: SecondLevelStore? = nil) throws where Value == Data {
-        try self.init(
+    public convenience init(location: Location, secondLevelStore: SecondLevelStore? = nil) where Value == Data {
+        self.init(
             load: { url in
                 try Data(contentsOf: url)
             },
@@ -77,8 +77,8 @@ public final class FileStore<Value: Sendable>: Store {
         secondLevelStore: SecondLevelStore? = nil,
         encoder: JSONEncoder = JSONEncoder(),
         decoder: JSONDecoder = JSONDecoder()
-    ) throws where Value: Codable {
-        try self.init(
+    ) where Value: Codable {
+        self.init(
             load: { url in
                 let data = try Data(contentsOf: url)
                 return try decoder.decode(Value.self, from: data)
@@ -98,13 +98,14 @@ public final class FileStore<Value: Sendable>: Store {
         save: @escaping Save,
         location: Location,
         secondLevelStore: SecondLevelStore? = nil
-    ) throws {
+    ) {
         print("FileStore location=\(location.directoryURL)")
         self.load = load
         self.save = save
         self.location = location
         self.secondLevelStore = secondLevelStore
-        try FileManager.default.createDirectory(at: location.directoryURL, withIntermediateDirectories: true)
+        // Allowing this to fail silently to be DI-friendly. Load and save operations will throw downstream.
+        try? FileManager.default.createDirectory(at: location.directoryURL, withIntermediateDirectories: true)
     }
 
     // MARK: - Constants
