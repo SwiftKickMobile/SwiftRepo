@@ -274,6 +274,73 @@ struct DefaultQueryRepositoryTests {
         ])
     }
 
+    // MARK: - getValue() API Tests
+
+    @Test("getValue success with basic repository")
+    func getValueSuccessBasic() async throws {
+        let delayedValues = DelayedValues<String>(values: [.makeValue(valueA1, delay: 0)])
+        let repo = await makeIDStoreRepository(delayedValues: delayedValues)
+        
+        let result = try await repo.getValue(
+            queryId: id, 
+            variables: id, 
+            errorIntent: .indispensable,
+            willGet: {}
+        )
+        
+        #expect(result == valueA1)
+    }
+
+    @Test("getValue error handling") 
+    func getValueErrorHandling() async throws {
+        let delayedValues = DelayedValues<String>(values: [.makeError(TestError(category: .failure), delay: 0)])
+        let repo = await makeIDStoreRepository(delayedValues: delayedValues)
+        
+        await #expect(throws: TestError.self) {
+            try await repo.getValue(
+                queryId: id, 
+                variables: id, 
+                errorIntent: .indispensable,
+                willGet: {}
+            )
+        }
+    }
+
+    @Test("getValue with ModelResponse repository")
+    func getValueWithModelResponse() async throws {
+        let delayedValues = DelayedValues<TestModelResponse>(values: [.makeValue(responseA, delay: 0)])
+        let (repo, _) = await makeModelResponseStoreRepository(delayedValues: delayedValues)
+        
+        let result = try await repo.getValue(
+            queryId: id,
+            variables: id, 
+            errorIntent: .indispensable,
+            willGet: {}
+        )
+        
+        #expect(result == responseA.value)
+    }
+
+    @Test("getValue returns cached value")
+    func getValueReturnsCachedValue() async throws {
+        let delayedValues = DelayedValues<String>(values: [.makeValue(valueA1, delay: 0)])
+        let repo = await makeIDStoreRepository(queryStrategy: .always, delayedValues: delayedValues)
+        
+        // First call to populate cache
+        _ = try await repo.getValue(queryId: id, variables: id, errorIntent: .indispensable, willGet: {})
+        
+        // Second call with .never strategy should return cached value without making new query
+        let result = try await repo.getValue(
+            queryId: id, 
+            variables: id, 
+            errorIntent: .indispensable, 
+            queryStrategy: .never,
+            willGet: {}
+        )
+        
+        #expect(result == valueA1)
+    }
+
     // MARK: - Constants
 
     typealias QueryStoreKeyType = QueryStoreKey<String, String>
@@ -282,6 +349,10 @@ struct DefaultQueryRepositoryTests {
     private struct TestModelResponse: ModelResponse {
         var value: String
         var models: [TestStoreModel]
+        
+        static func withValue(_ value: String) -> TestModelResponse {
+            return TestModelResponse(value: value, models: [])
+        }
 
         struct TestStoreModel: StoreModel, Equatable {
             var id: UUID

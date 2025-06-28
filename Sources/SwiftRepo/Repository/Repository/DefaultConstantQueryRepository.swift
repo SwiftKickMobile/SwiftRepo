@@ -77,6 +77,21 @@ public final class DefaultConstantQueryRepository<Variables: Hashable & Sendable
     }
 
     @AsyncLocked
+    public func getValue(
+        errorIntent: ErrorIntent,
+        queryStrategy: QueryStrategy?,
+        willGet: @escaping @MainActor () async -> Void
+    ) async throws -> Value {
+        return try await repository.getValue(
+            queryId: variables,
+            variables: variables,
+            errorIntent: errorIntent,
+            queryStrategy: queryStrategy,
+            willGet: willGet
+        )
+    }
+
+    @AsyncLocked
     public func publisher() async -> AnyPublisher<ValueResult, Never> {
         await repository.publisher(for: variables, setCurrent: variables)
     }

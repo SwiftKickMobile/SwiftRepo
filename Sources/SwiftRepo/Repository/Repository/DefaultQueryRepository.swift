@@ -60,7 +60,7 @@ public final class DefaultQueryRepository<QueryId: Hashable & Sendable, Variable
             }
         }
         get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
-            _ = try await query.get(
+            return try await query.get(
                 id: queryId,
                 variables: variables,
                 into: observableStore,
@@ -105,7 +105,7 @@ public final class DefaultQueryRepository<QueryId: Hashable & Sendable, Variable
             }
         }
         get = { key, queryId, variables, errorIntent, queryStrategy, willGet in
-            _ = try await query.get(
+            return try await query.get(
                 id: queryId,
                 variables: variables,
                 into: observableStore,
@@ -150,13 +150,13 @@ public final class DefaultQueryRepository<QueryId: Hashable & Sendable, Variable
     ///   - mergeStrategy: Specifies how models are stored in the `modelStore`.
     ///   - queryStrategy: The query strategy to use.
     ///   - queryOperation: The operation to use to perform the actual query.
-    public convenience init<Model>(
+    public convenience init<Model, QueryValue>(
         observableStore: ObservableStoreType,
         modelStore: any Store<Model.Key, Model>,
         mergeStrategy: ModelStoreMergeStrategy,
         queryStrategy: QueryStrategy,
-        queryOperation: @escaping @Sendable (Variables) async throws -> Value
-    ) where Model: StoreModel, Value: ModelResponse, Model == Value.Model, Key == QueryId, Value == Value.Value {
+        queryOperation: @escaping @Sendable (Variables) async throws -> QueryValue
+    ) where Model: StoreModel, QueryValue: ModelResponse & Sendable, Model == QueryValue.Model, Key == QueryId, Value == QueryValue.Value {
         self.init(
             observableStore: observableStore,
             modelStore: modelStore,
@@ -247,7 +247,7 @@ public final class DefaultQueryRepository<QueryId: Hashable & Sendable, Variable
         _ errorIntent: ErrorIntent,
         _ queryStrategy: QueryStrategy,
         _ willGet: @escaping Query.WillGet
-    ) async throws -> Void
+    ) async throws -> Value
 
     // MARK: - QueryRepository
 
@@ -261,7 +261,7 @@ public final class DefaultQueryRepository<QueryId: Hashable & Sendable, Variable
     ) async {
         let key = keyFactory(queryId, variables)
         do {
-            try await get(key, queryId, variables, errorIntent, queryStrategy ?? self.queryStrategy, willGet)
+            _ = try await get(key, queryId, variables, errorIntent, queryStrategy ?? self.queryStrategy, willGet)
         } catch let error as QueryError where error == .cancelled {
             // Don't publish cancellation errors – we have no use case for needing to know about this
             // and including them would force view models to remember to ignore cancellation errors.
@@ -270,6 +270,18 @@ public final class DefaultQueryRepository<QueryId: Hashable & Sendable, Variable
             _ = observableStore.subscriber
                 .receive(result)
         }
+    }
+
+    @AsyncLocked
+    public func getValue(
+        queryId: QueryId,
+        variables: Variables,
+        errorIntent: ErrorIntent,
+        queryStrategy: QueryStrategy?,
+        willGet: @escaping Query.WillGet
+    ) async throws -> Value {
+        let key = keyFactory(queryId, variables)
+        return try await get(key, queryId, variables, errorIntent, queryStrategy ?? self.queryStrategy, willGet)
     }
 
     @AsyncLocked

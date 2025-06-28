@@ -19,4 +19,8 @@ public protocol ModelResponse {
 
     var value: Value { get }
     var models: [Model] { get }
+    
+    /// Creates a ModelResponse with the given value and empty models array.
+    /// This is used internally.
+    static func withValue(_ value: Value) -> Self
 }

@@ -9,6 +9,7 @@ import SwiftRepoCore
 
 public enum QueryError: String, Error {
     case cancelled
+    case noValueAvailable
 }
 
 /// Provides an interface for objects to layer functionality onto basic service queries, such
@@ -68,7 +69,7 @@ public extension Query {
     ///   - errorIntent: The error intent to apply to errors that are thrown by the query
     ///   - strategy: The query strategy
     ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
-    /// - Returns: The value if the query was performed. Otherwise, `nil`.
+    /// - Returns: The value, either from cache or by performing the query.
     func get<Store, Key>(
         id: QueryId,
         variables: Variables,
@@ -79,7 +80,7 @@ public extension Query {
         errorIntent: ErrorIntent,
         strategy: QueryStrategy,
         willGet: WillGet?
-    ) async throws -> Value?
+    ) async throws -> Value
     where Store: ObservableStore, Store.Value == Value, Store.Key == Key, Store.PublishKey == QueryId {
         try await commonGet(
             id: id,
@@ -95,7 +96,8 @@ public extension Query {
                 // Here we explicitly pass the value as `Value`, since `Store.Value == Value`
                 try await store.set(key: storeKey, value: value)
             },
-            modelStoreSet: nil
+            modelStoreSet: nil,
+            cachedValueConstructor: { $0 } // Store.Value == Value, so return directly
         )
     }
 
@@ -130,7 +132,7 @@ public extension Query {
     ///   - errorIntent: The error intent to apply to errors that are thrown by the query
     ///   - strategy: The query strategy
     ///   - willGet: A closure that will be called if and when the query is performed. This is typically the `LoadingController.loading` function.
-    /// - Returns: The value if the query was performed. Otherwise, `nil`.
+    /// - Returns: The value portion, either from cache or by performing the query.
     func get<Store, Key, ModelStore>(
         id: QueryId,
         variables: Variables,
@@ -143,7 +145,7 @@ public extension Query {
         errorIntent: ErrorIntent,
         strategy: QueryStrategy,
         willGet: WillGet?
-    ) async throws -> Value?
+    ) async throws -> Value.Value
     where Value: ModelResponse,
           Store: ObservableStore,
           Store.Value == Value.Value,
@@ -153,7 +155,7 @@ public extension Query {
           ModelStore.Value == Value.Model,
           ModelStore.Key == Value.Model.Key
     {
-        try await commonGet(
+        let modelResponse = try await commonGet(
             id: id,
             variables: variables,
             into: store,
@@ -192,8 +194,13 @@ public extension Query {
                 if let modelStore = modelStore as? Saveable {
                     try await modelStore.save()
                 }
+            },
+            cachedValueConstructor: { cachedValue in
+                // Construct ModelResponse with cached value and empty models
+                return Value.withValue(cachedValue)
             }
         )
+        return modelResponse.value
     }
 }
 
@@ -230,8 +237,9 @@ private extension Query {
         strategy: QueryStrategy,
         willGet: WillGet?,
         storeSet: @escaping (Key, Value) async throws -> Void,
-        modelStoreSet: (@MainActor (Value) async throws -> Void)?
-    ) async throws -> Value?
+        modelStoreSet: (@MainActor (Value) async throws -> Void)?,
+        cachedValueConstructor: @escaping (Store.Value) -> Value
+    ) async throws -> Value
     where Store: ObservableStore, Store.Key == Key, Store.PublishKey == QueryId {
         let key = store.map(key: unmappedKey)
         // Set the current key to this query's key. If the key exists in the store and is not already the current
@@ -268,7 +276,14 @@ private extension Query {
             // 4. The ongoing query with variables A needs to be cancelled explicitly
             //    since we're here and not peroforming a query with variables B
             await cancel(id: id)
-            return nil
+            
+            // If strategy prevents querying, try to return cached value
+            if let cachedValue = try await store.get(key: key) {
+                return cachedValueConstructor(cachedValue)
+            } else {
+                // No cached value and strategy prevents querying
+                throw QueryError.noValueAvailable
+            }
         }
         await willGet?()
         do {
