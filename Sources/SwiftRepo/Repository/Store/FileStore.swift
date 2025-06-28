@@ -12,13 +12,13 @@ import SwiftRepoCore
 /// A persistent store implementation that supports an optional 2nd-level storage for in-memory caching.
 /// This store is useful for storing images and caching recently used ones in memory.
 @MainActor
-public final class FileStore<Value: Sendable>: Store {
+public final class FileStore<Key: Hashable, Value: Sendable>: Store where Key: RawRepresentable, Key.RawValue == String {
 
     // MARK: - API
 
-    /// The key is required to be a string so we can easily use it as the filename. Otherwise, we need to add a mapping from
-    /// filename to `Key` for the `keys` API.
-    public typealias Key = String
+//    /// The key is required to be a string so we can easily use it as the filename. Otherwise, we need to add a mapping from
+//    /// filename to `Key` for the `keys` API.
+//    public typealias Key = String
 
     /// A closure that knows how to load a file URL of type `Wrapped`.
     public typealias Load = @Sendable (URL) async throws -> Value
@@ -163,14 +163,17 @@ public final class FileStore<Value: Sendable>: Store {
     }
 
     public var keys: [Key] {
-        (try? FileManager.default.contentsOfDirectory(atPath: location.directoryURL.path)) ?? []
+        (
+            try? FileManager.default.contentsOfDirectory(atPath: location.directoryURL.path)
+                .compactMap { Key(rawValue: $0) }
+        ) ?? []
     }
 
     // MARK: - File management
 
     private func url(for key: Key) -> URL {
         let url = location.directoryURL
-        return url.appendingPathComponent(key)
+        return url.appendingPathComponent(key.rawValue)
     }
 
     @BackgroundFileActor
