@@ -126,6 +126,20 @@ public final class LoadingController<DataType: Emptyable & Sendable> {
         }
     }
 
+    /// Sets the result of loading or updating the data and can be awaited to syncronize with the indefinite controller.
+    public func setAsync(result: ResultType) async {
+        let newState = result.asLoadState(
+            currentLoadState: loadState,
+            loadedErrorsToEmpty: loadingBehavior?.loadedErrorsToEmpty ?? false
+        )
+        if indefiniteController == nil || indefiniteController?.tryStoppingSynchronously() == true {
+            set(state: newState)
+        } else {
+            await indefiniteController?.stop()
+            set(state: newState)
+        }
+    }
+
     /// A subscriber than can receive the published results of loading or updating the data.
     public private(set) lazy var resultSubscriber: AnySubscriber<ResultType, Never> = {
         resultSubject
@@ -265,8 +279,10 @@ public final class LoadingController<DataType: Emptyable & Sendable> {
                 if isHidden != oldIsHidden {
                     stateSubject.send(.loaded(cachedData, nil, isUpdating: !isHidden))
                 }
-            case .loaded:
-                break
+            case let .loaded(_, error):
+                if error != nil || !isHidden {
+                    stateSubject.send(.loaded(cachedData, nil, isUpdating: !isHidden))
+                }
             case .empty:
                 stateSubject.send(.loading(isHidden: isLoadingHidden))
             }

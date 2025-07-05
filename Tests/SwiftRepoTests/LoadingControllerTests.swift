@@ -531,6 +531,124 @@ struct LoadingControllerTests {
             .loaded(.two, nil, isUpdating: false),
         ])
     }
+    
+    @Test("Loaded error retry same error")
+    func loadedErrorRetrySameError() async {
+        let testState = TestState()
+        testState.setUp(controller: LoadingController())
+        
+        // Initial successful load
+        testState.tasks = [
+            ScheduledTask(delay: 0.1, task: Task { Data.one }),
+        ]
+        await testState.performTask()
+        
+        // First error
+        testState.tasks = [
+            ScheduledTask(delay: 0.1, task: Task { throw TestError(category: .failure) }),
+        ]
+        await testState.performTask()
+        
+        // Clear transitions so we can focus on the retry scenario
+        testState.transitions.removeAll()
+        
+        // Retry with the same error
+        testState.tasks = [
+            ScheduledTask(delay: 0.1, task: Task { throw TestError(category: .failure) }),
+        ]
+        await testState.performTask()
+        
+        // The key test: when retrying from a loaded error state, we should see:
+        // 1. An intermediate state clearing the error (loaded with nil error, isUpdating: false)
+        // 2. Then the new error state
+        // This ensures SwiftUI detects the state change even when the same error occurs
+        #expect(testState.transitions == [
+            .loaded(.one, nil, isUpdating: false),  // Error cleared on retry
+            .loaded(.one, TestError(category: .failure), isUpdating: false),  // Same error, but detected as change
+        ])
+    }
+
+    @Test("Loaded error retry same error with loading behavior")
+    func loadedErrorRetrySameErrorWithLoadingBehavior() async throws {
+        let testState = TestState()
+        testState.setUp(
+            controller: LoadingController(
+                loadingBehavior: .init(delay: 0.1, minimumDuration: 0.1)
+            )
+        )
+        
+        // Initial successful load
+        testState.tasks = [
+            ScheduledTask(delay: 0.05, task: Task { Data.one }),
+        ]
+        await testState.performTask()
+        
+        // First error
+        testState.tasks = [
+            ScheduledTask(delay: 0.05, task: Task { throw TestError(category: .failure) }),
+        ]
+        await testState.performTask()
+        
+        // Clear transitions so we can focus on the retry scenario
+        testState.transitions.removeAll()
+        
+        // Retry with the same error (slow completion - exceeds delay)
+        testState.tasks = [
+            ScheduledTask(delay: 0.15, task: Task { throw TestError(category: .failure) }),
+        ]
+        await testState.performTask()
+        try await testState.arbitraryWait()
+        
+        // With loading behavior and slow retry, we should see:
+        // 1. Error cleared initially with isUpdating: false 
+        // 2. When delay exceeded, isUpdating: true
+        // 3. Error state with isUpdating: false (final state)
+        #expect(testState.transitions == [
+            .loaded(.one, nil, isUpdating: false),  // Error cleared on retry
+            .loaded(.one, nil, isUpdating: true),   // Delay exceeded, isUpdating: true
+            .loaded(.one, TestError(category: .failure), isUpdating: false),  // Same error, but detected as change
+        ])
+    }
+
+    @Test("Loaded error retry same error with loading behavior fast")
+    func loadedErrorRetrySameErrorWithLoadingBehaviorFast() async throws {
+        let testState = TestState()
+        testState.setUp(
+            controller: LoadingController(
+                loadingBehavior: .init(delay: 0.1, minimumDuration: 0.1)
+            )
+        )
+        
+        // Initial successful load
+        testState.tasks = [
+            ScheduledTask(delay: 0.05, task: Task { Data.one }),
+        ]
+        await testState.performTask()
+        
+        // First error
+        testState.tasks = [
+            ScheduledTask(delay: 0.05, task: Task { throw TestError(category: .failure) }),
+        ]
+        await testState.performTask()
+        
+        // Clear transitions so we can focus on the retry scenario
+        testState.transitions.removeAll()
+        
+        // Retry with the same error (fast completion - doesn't exceed delay)
+        testState.tasks = [
+            ScheduledTask(delay: 0.05, task: Task { throw TestError(category: .failure) }),
+        ]
+        await testState.performTask()
+        try await testState.arbitraryWait()
+        
+        // With loading behavior but fast retry, we should see:
+        // 1. Error cleared with isUpdating: false (because delay not exceeded)
+        // 2. Error state with isUpdating: false (final state)
+        #expect(testState.transitions == [
+            .loaded(.one, nil, isUpdating: false),  // Error cleared on retry, isUpdating: false (delay not exceeded)
+            .loaded(.one, TestError(category: .failure), isUpdating: false),  // Same error, but detected as change
+        ])
+    }
 }
 
 // MARK: - Test State Helper

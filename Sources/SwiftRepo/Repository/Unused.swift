@@ -14,3 +14,9 @@ import Foundation
 public enum Unused: Hashable, Codable, Sendable {
     case unused
 }
+
+extension Unused: Emptyable {
+    public var isEmpty: Bool {
+        false
+    }
+}

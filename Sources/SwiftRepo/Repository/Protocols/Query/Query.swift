@@ -253,8 +253,26 @@ private extension Query {
             let currentKey = await store.currentKey(for: id) as? QueryStoreKey<QueryId, Variables>
             variablesChanged = queryStoreKey != currentKey
         } else {
-            let latestVariables = await latestVariables(for: id)
-            variablesChanged = variables != latestVariables
+            // WORKAROUND: Special case for VariableQueryRepository and ConstantQueryRepository
+            // When QueryId == Variables (detected by successful casting and equality), the variables
+            // are effectively constant for a given queryId, so variablesChanged should always be false.
+            // This fixes the issue where queries are unnecessarily repeated after app restarts because
+            // the in-memory `lastVariables` state is lost while the persisted store data remains.
+            //
+            // IDEAL SOLUTION: Enhance TimestampedValue to store variables alongside the value, and
+            // add a `lastVariables(of:)` method to the Store protocol. This would ensure variables
+            // lifetime exactly matches the stored value lifetime, eliminating this entire class of issues.
+            // The ideal approach would involve:
+            // 1. TimestampedValue<Value, Variables> - store variables with each cached value
+            // 2. Store.lastVariables(of:) -> Variables? - retrieve variables for any stored key  
+            // 3. Enhanced all store implementations (FileStore, DictionaryStore, etc.)
+            // This would be architecturally perfect but requires significant breaking changes.
+            if let queryIdAsVariables = id as? Variables, queryIdAsVariables == variables {
+                variablesChanged = false
+            } else {
+                let latestVariables = await latestVariables(for: id)
+                variablesChanged = variables != latestVariables
+            }
         }
         let isPaging: Bool = {
             switch variables as? HasCursorPaginationInput {

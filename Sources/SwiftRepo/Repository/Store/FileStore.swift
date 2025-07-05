@@ -9,6 +9,17 @@ import OSLog
 import Foundation
 import SwiftRepoCore
 
+extension String: @retroactive RawRepresentable {
+
+    public var rawValue: String {
+        self
+    }
+
+    public init(rawValue: String) {
+        self = rawValue
+    }
+}
+
 /// A persistent store implementation that supports an optional 2nd-level storage for in-memory caching.
 /// This store is useful for storing images and caching recently used ones in memory.
 @MainActor
@@ -124,7 +135,8 @@ public final class FileStore<Key: Hashable, Value: Sendable>: Store where Key: R
         switch value {
         case let value?:
             try await secondLevelStore?.set(key: key, value: value)
-            try await save(value: value, url: url(for: key))
+            let fileURL = url(for: key)
+            try await save(value: value, url: fileURL)
             return value
         case .none:
             try await secondLevelStore?.set(key: key, value: nil)
@@ -150,7 +162,8 @@ public final class FileStore<Key: Hashable, Value: Sendable>: Store where Key: R
             let url = url(for: key)
             let attr = try FileManager.default.attributesOfItem(atPath: url.path)
             guard let date = attr[FileAttributeKey.modificationDate] as? Date else { return nil }
-            return Date().timeIntervalSince(date)
+            let age = Date().timeIntervalSince(date)
+            return age
         } catch {
             return nil
         }
