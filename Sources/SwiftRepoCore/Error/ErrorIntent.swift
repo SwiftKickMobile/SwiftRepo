@@ -8,7 +8,7 @@
 import Foundation
 
 /// A standard enum indicating an intent or purpose for the error from the perspective of the caller
-public enum ErrorIntent: String, Sendable {
+public enum ErrorIntent: Codable, Sendable {
     case dispensable
     case indispensable
 }
