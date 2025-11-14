@@ -27,10 +27,11 @@ public class SwiftDataStore<Model: StoreModel>: Store, Saveable where Model: Per
     /// Creates a `SwiftData` store based on the provided `ModelContainer`
     /// - Parameter modelContainer: the `ModelContainer` to use when storing `Model`s
     /// - Parameter merge: the optional operation to merge a new value into an existing value
-    public init(modelContainer: ModelContainer, merge: Merge?) {
+    /// - Parameter timestampStoreID: the optional unique ID of the timestamp store's SwiftData database file
+    public init(modelContainer: ModelContainer, merge: Merge?, timestampStoreID: String? = nil) {
         self.modelContainer = modelContainer
         self.merge = merge
-        self.timestampStore = PersistentStore<Key, UUID>(id: String(describing: Model.self))
+        self.timestampStore = PersistentStore<Key, UUID>(id: timestampStoreID ?? String(describing: Model.self))
     }
     
     @MainActor
