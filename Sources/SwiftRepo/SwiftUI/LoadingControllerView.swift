@@ -68,8 +68,11 @@ public struct LoadingControllerView<DataType, Content, LoadingContent, ErrorCont
         // This keeps animations together if new animations are created while other animations are in progress.
         .geometryGroup()
         .animation(.default, value: state)
-        .refreshable { [weak refresh] in
-            await refresh?.refresh(retryError: nil)
+        .if(refresh != nil) { content in
+            content
+                .refreshable { [weak refresh] in
+                    await refresh?.refresh(retryError: nil)
+                }
         }
     }
 }
